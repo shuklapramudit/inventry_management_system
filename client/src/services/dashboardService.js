@@ -1,6 +1,11 @@
+import { getApiBaseUrl } from "../utils/api.js";
 
-const API =
-  "https://inventry-management-system-1-obf0.onrender.com/api/dashboard";
+// =====================================================
+// API
+// =====================================================
+
+const API = `${getApiBaseUrl()}/dashboard`;
+
 
 // =====================================================
 // GET AUTH TOKEN
@@ -25,6 +30,7 @@ const getHeaders = () => {
 
   return {
     "Content-Type": "application/json",
+
     ...(token
       ? {
           Authorization: `Bearer ${token}`,
@@ -49,14 +55,14 @@ export const getDashboard = async () => {
 
   try {
     data = await response.json();
-  } catch (error) {
+  } catch {
     data = {};
   }
 
   if (!response.ok) {
     throw new Error(
       data?.message ||
-        "Failed to load dashboard data"
+        `Failed to load dashboard data (${response.status})`
     );
   }
 
@@ -82,14 +88,14 @@ export const getMonthlySales = async () => {
 
   try {
     data = await response.json();
-  } catch (error) {
+  } catch {
     data = {};
   }
 
   if (!response.ok) {
     throw new Error(
       data?.message ||
-        "Failed to fetch monthly sales"
+        `Failed to fetch monthly sales (${response.status})`
     );
   }
 
@@ -115,14 +121,14 @@ export const getYearlySales = async () => {
 
   try {
     data = await response.json();
-  } catch (error) {
+  } catch {
     data = {};
   }
 
   if (!response.ok) {
     throw new Error(
       data?.message ||
-        "Failed to fetch yearly sales"
+        `Failed to fetch yearly sales (${response.status})`
     );
   }
 
@@ -148,14 +154,14 @@ export const getLowStock = async () => {
 
   try {
     data = await response.json();
-  } catch (error) {
+  } catch {
     data = {};
   }
 
   if (!response.ok) {
     throw new Error(
       data?.message ||
-        "Failed to fetch low stock products"
+        `Failed to fetch low stock products (${response.status})`
     );
   }
 
