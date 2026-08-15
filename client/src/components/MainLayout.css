@@ -1,0 +1,45 @@
+.main-layout {
+  min-height: 100vh;
+
+  display: flex;
+
+  background: #f5f8fa;
+}
+
+
+.main-layout-content {
+  min-width: 0;
+
+  flex: 1;
+
+  margin-left: 280px;
+
+  min-height: 100vh;
+
+  display: flex;
+
+  flex-direction: column;
+}
+
+
+.main-layout-main {
+  flex: 1;
+
+  width: 100%;
+
+  min-width: 0;
+
+  box-sizing: border-box;
+}
+
+
+/* =====================================================
+   MOBILE
+===================================================== */
+
+@media (max-width: 768px) {
+
+  .main-layout-content {
+    margin-left: 0;
+  }
+}

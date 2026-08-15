@@ -1,24 +1,26 @@
 {
-  "name": "server",
+  "name": "chashma-plus-inventory-server",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "Backend API for Chashma Plus Inventory Management System",
+  "type": "module",
+  "main": "Server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node Server.js",
+    "dev": "nodemon Server.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
-    "bcryptjs": "^3.0.3",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
     "multer": "^2.2.0",
-    "mysql2": "^3.23.3"
+    "mysql2": "^3.14.3"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.1.10"
   }
 }
