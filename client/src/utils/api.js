@@ -2,20 +2,8 @@
 // API CONFIGURATION
 // =====================================================
 
-// Vercel Production:
-// VITE_API_URL = https://inventry-management-system-1-obf0.onrender.com/api
-//
-// Local Development:
-// http://localhost:5000/api
-
 const API_BASE_URL =
-  (
-    import.meta.env.VITE_API_URL ||
-    "https://inventry-management-system-1-obf0.onrender.com/api"
-  )
-    .trim()
-    .replace(/\/+$/, "")
-    .replace(/\/api$/i, "") + "/api";
+  "https://inventry-management-system-1-obf0.onrender.com/api";
 
 
 // =====================================================
@@ -57,7 +45,9 @@ const apiRequest = async (
   let cleanEndpoint =
     endpoint || "";
 
-  if (!cleanEndpoint.startsWith("/")) {
+  if (
+    !cleanEndpoint.startsWith("/")
+  ) {
     cleanEndpoint =
       `/${cleanEndpoint}`;
   }
@@ -80,7 +70,7 @@ const apiRequest = async (
 
 
   // -------------------------------------------------
-  // BUILD FINAL URL
+  // BUILD URL
   // -------------------------------------------------
 
   const url =
@@ -256,10 +246,8 @@ const apiRequest = async (
         `Request failed with status ${response.status}`
       );
 
-
     error.status =
       response.status;
-
 
     error.data =
       data;
