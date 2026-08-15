@@ -1,5 +1,6 @@
+
 const API =
-  `${import.meta.env.VITE_API_URL}/dashboard`;
+  "https://inventry-management-system-1-obf0.onrender.com/api/dashboard";
 
 // =====================================================
 // GET AUTH TOKEN
