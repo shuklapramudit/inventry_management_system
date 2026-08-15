@@ -9,17 +9,9 @@ import "./Inventory.css";
 // API URL
 // =====================================================
 
-const API =
-  import.meta.env.VITE_API_URL ||
-  "https://inventry-management-system-1-obf0.onrender.com/api";
+const API = import.meta.env.VITE_API_URL;
 
-// =====================================================
-// SERVER URL
-// =====================================================
-
-const SERVER_URL =
-  import.meta.env.VITE_SERVER_URL ||
-  "https://inventry-management-system-1-obf0.onrender.com";
+const SERVER_URL = import.meta.env.VITE_SERVER_URL;
 
 export { API, SERVER_URL };
 
