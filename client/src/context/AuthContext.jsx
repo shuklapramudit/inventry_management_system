@@ -111,6 +111,7 @@ export const AuthProvider = ({
         password
       );
 
+
     // -------------------------------------------------
     // CHECK RESPONSE
     // -------------------------------------------------
@@ -168,6 +169,7 @@ export const AuthProvider = ({
 
 
     // Compatibility keys
+
     localStorage.setItem(
       "authToken",
       token
@@ -191,7 +193,9 @@ export const AuthProvider = ({
         JSON.stringify(user)
       );
 
+
       // Compatibility with older code
+
       localStorage.setItem(
         "user",
         JSON.stringify(user)
@@ -219,7 +223,9 @@ export const AuthProvider = ({
 
     logoutService();
 
+
     // Remove compatibility keys
+
     localStorage.removeItem(
       "authToken"
     );
@@ -231,6 +237,7 @@ export const AuthProvider = ({
     localStorage.removeItem(
       "user"
     );
+
 
     setAdmin(null);
 
@@ -287,6 +294,7 @@ export const useAuth = () => {
   const context =
     useContext(AuthContext);
 
+
   if (!context) {
 
     throw new Error(
@@ -294,6 +302,7 @@ export const useAuth = () => {
     );
 
   }
+
 
   return context;
 };
