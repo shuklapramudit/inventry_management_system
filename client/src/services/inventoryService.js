@@ -1,182 +1,9 @@
+import apiRequest from "../utils/api.js";
+
+
 // =====================================================
 // INVENTORY SERVICE
 // =====================================================
-
-// =====================================================
-// API CONFIGURATION
-// =====================================================
-
-const RAW_API_URL =
-  import.meta.env.VITE_API_URL ||
-  "https://inventry-management-system-1-obf0.onrender.com/api";
-
-
-// =====================================================
-// NORMALIZE API BASE URL
-// =====================================================
-
-const API_BASE_URL = (() => {
-
-  const baseUrl =
-    RAW_API_URL
-      .trim()
-      .replace(/\/+$/, "");
-
-  if (
-    baseUrl
-      .toLowerCase()
-      .endsWith("/api")
-  ) {
-    return baseUrl;
-  }
-
-  return `${baseUrl}/api`;
-
-})();
-
-
-// =====================================================
-// INVENTORY API
-// =====================================================
-
-const API =
-  `${API_BASE_URL}/inventory`;
-
-
-// =====================================================
-// GET AUTH TOKEN
-// =====================================================
-
-const getToken = () => {
-
-  return (
-    localStorage.getItem("token") ||
-    localStorage.getItem("authToken") ||
-    localStorage.getItem("accessToken") ||
-    ""
-  );
-
-};
-
-
-// =====================================================
-// COMMON HEADERS
-// =====================================================
-
-const getHeaders = () => {
-
-  const token =
-    getToken();
-
-  return {
-
-    "Content-Type":
-      "application/json",
-
-    ...(token
-      ? {
-          Authorization:
-            `Bearer ${token}`,
-        }
-      : {}),
-
-  };
-
-};
-
-
-// =====================================================
-// COMMON API REQUEST
-// =====================================================
-
-const request = async (
-  endpoint,
-  options = {}
-) => {
-
-  const cleanEndpoint =
-    endpoint.startsWith("/")
-      ? endpoint
-      : `/${endpoint}`;
-
-
-  const url =
-    `${API}${cleanEndpoint}`;
-
-
-  console.log(
-    "Inventory API Request:",
-    url
-  );
-
-
-  let response;
-
-  try {
-
-    response =
-      await fetch(
-        url,
-        {
-          ...options,
-          headers: {
-            ...getHeaders(),
-            ...(options.headers || {}),
-          },
-        }
-      );
-
-  } catch (error) {
-
-    console.error(
-      "Inventory Network Error:",
-      error
-    );
-
-    throw new Error(
-      "Unable to connect to inventory server."
-    );
-
-  }
-
-
-  let data = {};
-
-  try {
-
-    data =
-      await response.json();
-
-  } catch {
-
-    data = {};
-
-  }
-
-
-  if (!response.ok) {
-
-    const error =
-      new Error(
-        data?.message ||
-        data?.error ||
-        `Request failed with status ${response.status}`
-      );
-
-    error.status =
-      response.status;
-
-    error.data =
-      data;
-
-    throw error;
-
-  }
-
-
-  return data;
-
-};
 
 
 // =====================================================
@@ -187,8 +14,8 @@ const request = async (
 export const getInventory =
   async () => {
 
-    return request(
-      "",
+    return apiRequest(
+      "/inventory",
       {
         method: "GET",
       }
@@ -205,8 +32,8 @@ export const getInventory =
 export const getLowStock =
   async () => {
 
-    return request(
-      "/low-stock",
+    return apiRequest(
+      "/inventory/low-stock",
       {
         method: "GET",
       }
@@ -225,8 +52,8 @@ export const getInventoryByProduct =
     productId
   ) => {
 
-    return request(
-      `/product/${productId}`,
+    return apiRequest(
+      `/inventory/product/${productId}`,
       {
         method: "GET",
       }
@@ -245,8 +72,8 @@ export const addPurchase =
     data
   ) => {
 
-    return request(
-      "/purchase",
+    return apiRequest(
+      "/inventory/purchase",
       {
         method: "POST",
 
@@ -271,8 +98,8 @@ export const adjustStock =
     data
   ) => {
 
-    return request(
-      `/${productId}/adjust`,
+    return apiRequest(
+      `/inventory/${productId}/adjust`,
       {
         method: "PATCH",
 
