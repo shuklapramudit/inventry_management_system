@@ -293,7 +293,7 @@ const Inventory = () => {
   // ===================================================
 
   const fetchInventory = async () => {
-    const response = await fetch(`${API}/api/inventory`, {
+    const response = await fetch(`${API}/inventory`, {
       method: "GET",
       headers: getHeaders(),
     });
@@ -625,7 +625,7 @@ const Inventory = () => {
         notes: purchaseForm.notes.trim() || null,
       };
 
-      const response = await fetch(`${API}/api/inventory/purchase`, {
+      const response = await fetch(`${API}/inventory/purchase`, {
         method: "POST",
         headers: getHeaders(true),
         body: JSON.stringify(payload),
@@ -747,7 +747,7 @@ const Inventory = () => {
       setSaving(true);
 
       const response = await fetch(
-        `${API}/api/inventory/${selectedItem.productId}/adjust`,
+        `${API}/inventory/${selectedItem.productId}/adjust`,
         {
           method: "PATCH",
           headers: getHeaders(true),
