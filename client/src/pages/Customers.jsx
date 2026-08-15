@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import "./Customers.css";
 
-const API = "http://localhost:5000/api/customers";
+const API =
+  "https://inventry-management-system-1-obf0.onrender.com/api/customers";
 
 const Customers = () => {
   // =====================================================
