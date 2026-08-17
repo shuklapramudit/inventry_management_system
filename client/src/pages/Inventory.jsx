@@ -1754,10 +1754,10 @@ const Inventory = () => {
                     <th>
                       Shop
                     </th>
-
+{/* 
                     <th>
                       Purchased
-                    </th>
+                    </th> */}
 
                     <th>
                       Sold
