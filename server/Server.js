@@ -3,6 +3,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import path from "path";
+import fs from "fs";
 
 // =====================================================
 // DATABASE
@@ -73,26 +74,80 @@ app.use(
 );
 
 // =====================================================
-// STATIC PRODUCT UPLOADS
+// UPLOAD DIRECTORY
 // =====================================================
-//
-// Product images will be available at:
-//
-// http://localhost:5000/uploads/products/filename.jpg
 //
 // Physical directory:
 //
+// server/uploads
+//
+// Product images:
+//
 // server/uploads/products
+//
+// Public URL:
+//
+// /uploads/products/filename.jpg
+//
+// =====================================================
+
+const uploadsPath = path.resolve(
+  process.cwd(),
+  "uploads"
+);
+
+const productsUploadsPath = path.join(
+  uploadsPath,
+  "products"
+);
+
+// =====================================================
+// CREATE UPLOAD DIRECTORIES IF NOT EXISTS
+// =====================================================
+
+try {
+  fs.mkdirSync(
+    productsUploadsPath,
+    {
+      recursive: true,
+    }
+  );
+
+  console.log(
+    "Uploads directory:",
+    uploadsPath
+  );
+
+  console.log(
+    "Product uploads directory:",
+    productsUploadsPath
+  );
+} catch (error) {
+  console.error(
+    "Failed to create uploads directories:",
+    error
+  );
+}
+
+// =====================================================
+// STATIC PRODUCT UPLOADS
+// =====================================================
+//
+// Product images are available at:
+//
+// /uploads/products/filename.jpg
 //
 // =====================================================
 
 app.use(
   "/uploads",
   express.static(
-    path.join(
-      process.cwd(),
-      "uploads"
-    )
+    uploadsPath,
+    {
+      fallthrough: true,
+      index: false,
+      maxAge: "1d",
+    }
   )
 );
 
@@ -186,16 +241,6 @@ app.use(
 // PRODUCT ROUTES
 // /api/products
 // =====================================================
-//
-// POST /api/products
-// PUT  /api/products/:id
-//
-// Product images:
-//
-// field name = product_images
-// maximum    = 5
-//
-// =====================================================
 
 app.use(
   "/api/products",
@@ -237,7 +282,8 @@ app.use(
 // =====================================================
 //
 // IMPORTANT:
-// This must come AFTER all API routes.
+// This must remain AFTER all API routes
+// and static routes.
 //
 // =====================================================
 
@@ -286,6 +332,14 @@ app.listen(
 
     console.log(
       `Uploads URL: http://localhost:${PORT}/uploads`
+    );
+
+    console.log(
+      `Uploads physical path: ${uploadsPath}`
+    );
+
+    console.log(
+      `Product images path: ${productsUploadsPath}`
     );
 
     console.log(
