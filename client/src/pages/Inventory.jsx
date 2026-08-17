@@ -1760,11 +1760,11 @@ const Inventory = () => {
                     </th> */}
 
                     <th>
-                      Sold
+                      Total Inn
                     </th>
 
                     <th>
-                      Current Stock
+                      sold
                     </th>
 
                     <th>
