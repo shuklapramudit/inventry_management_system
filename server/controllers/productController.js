@@ -6,9 +6,7 @@ import path from "path";
 // HELPERS
 // =====================================================
 
-const parseImages = (
-  value
-) => {
+const parseImages = (value) => {
   if (!value) {
     return [];
   }
@@ -17,38 +15,25 @@ const parseImages = (
     return value.filter(Boolean);
   }
 
-  if (
-    typeof value === "string"
-  ) {
-    const trimmed =
-      value.trim();
+  if (typeof value === "string") {
+    const trimmed = value.trim();
 
     if (!trimmed) {
       return [];
     }
 
     try {
-      const parsed =
-        JSON.parse(trimmed);
+      const parsed = JSON.parse(trimmed);
 
-      if (
-        Array.isArray(parsed)
-      ) {
-        return parsed.filter(
-          Boolean
-        );
+      if (Array.isArray(parsed)) {
+        return parsed.filter(Boolean);
       }
 
-      if (
-        typeof parsed ===
-        "string"
-      ) {
-        return parsed
-          ? [parsed]
-          : [];
+      if (typeof parsed === "string") {
+        return parsed ? [parsed] : [];
       }
     } catch {
-      // normal string
+      // Normal string
     }
 
     return [trimmed];
@@ -61,72 +46,49 @@ const parseImages = (
 // NORMALIZE PRODUCT
 // =====================================================
 
-const normalizeProduct = (
-  product
-) => {
+const normalizeProduct = (product) => {
   if (!product) {
     return null;
   }
 
-  const images =
-    parseImages(
-      product.product_image
-    );
+  const images = parseImages(
+    product.product_image
+  );
 
-  const stock =
-    Number(
-      product.stock_quantity ??
-        0
-    );
+  const stock = Number(
+    product.stock_quantity ?? 0
+  );
 
-  const minimumStock =
-    Number(
-      product.minimum_stock ??
-        5
-    );
+  const minimumStock = Number(
+    product.minimum_stock ?? 5
+  );
 
-  const price =
-    Number(
-      product.selling_price ??
-        0
-    );
+  const price = Number(
+    product.selling_price ?? 0
+  );
 
   let status = "Active";
 
-  if (
-    Number(
-      product.is_active
-    ) !== 1
-  ) {
+  if (Number(product.is_active) !== 1) {
     status = "Inactive";
-  } else if (
-    stock <= 0
-  ) {
+  } else if (stock <= 0) {
     status = "Out of Stock";
-  } else if (
-    stock <= minimumStock
-  ) {
+  } else if (stock <= minimumStock) {
     status = "Low Stock";
   }
 
   return {
     ...product,
 
-    id: Number(
-      product.id
-    ),
+    id: Number(product.id),
 
-    ProductID: Number(
-      product.id
-    ),
+    ProductID: Number(product.id),
 
     ProductName:
-      product.product_name ||
-      "",
+      product.product_name || "",
 
     ProductType:
-      product.product_type ||
-      "",
+      product.product_type || "",
 
     Price: price,
 
@@ -138,8 +100,7 @@ const normalizeProduct = (
 
     Quantity: stock,
 
-    MinimumStock:
-      minimumStock,
+    MinimumStock: minimumStock,
 
     ImageURL:
       images[0] || null,
@@ -152,9 +113,7 @@ const normalizeProduct = (
       images.length,
 
     IsActive:
-      Number(
-        product.is_active
-      ) === 1,
+      Number(product.is_active) === 1,
 
     stock_status:
       status,
@@ -168,60 +127,37 @@ const normalizeProduct = (
 // DELETE LOCAL IMAGE FILE
 // =====================================================
 
-const deleteImageFile = (
-  image
-) => {
+const deleteImageFile = (image) => {
   try {
     if (
-      typeof image !==
-        "string" ||
+      typeof image !== "string" ||
       !image
     ) {
       return;
     }
 
     if (
-      image.startsWith(
-        "http://"
-      ) ||
-      image.startsWith(
-        "https://"
-      ) ||
-      image.startsWith(
-        "data:"
-      )
+      image.startsWith("http://") ||
+      image.startsWith("https://") ||
+      image.startsWith("data:")
     ) {
       return;
     }
 
-    let relativePath =
-      image;
+    let relativePath = image;
 
-    if (
-      relativePath.startsWith(
-        "/"
-      )
-    ) {
+    if (relativePath.startsWith("/")) {
       relativePath =
-        relativePath.substring(
-          1
-        );
+        relativePath.substring(1);
     }
 
-    const filePath =
-      path.join(
-        process.cwd(),
-        relativePath
-      );
+    const filePath = path.join(
+      process.cwd(),
+      relativePath
+    );
 
-    if (
-      fs.existsSync(
-        filePath
-      )
-    ) {
-      fs.unlinkSync(
-        filePath
-      );
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
     }
   } catch (error) {
     console.error(
@@ -235,18 +171,11 @@ const deleteImageFile = (
 // DELETE MULTIPLE IMAGE FILES
 // =====================================================
 
-const deleteImages = (
-  images
-) => {
-  const list =
-    parseImages(images);
+const deleteImages = (images) => {
+  const list = parseImages(images);
 
-  for (
-    const image of list
-  ) {
-    deleteImageFile(
-      image
-    );
+  for (const image of list) {
+    deleteImageFile(image);
   }
 };
 
@@ -255,102 +184,91 @@ const deleteImages = (
 // GET /api/products
 // =====================================================
 
-export const getProducts =
-  async (
-    req,
-    res
-  ) => {
-    try {
-      const [rows] =
-        await db.query(`
-          SELECT
-            id,
-            product_type,
-            product_name,
-            selling_price,
-            product_image,
-            stock_quantity,
-            minimum_stock,
-            shop_location,
-            description,
-            is_active,
-            created_at,
-            updated_at
-          FROM products
-          ORDER BY id DESC
-        `);
+export const getProducts = async (
+  req,
+  res
+) => {
+  try {
+    const [rows] = await db.query(`
+      SELECT
+        id,
+        product_type,
+        product_name,
+        selling_price,
+        product_image,
+        stock_quantity,
+        minimum_stock,
+        shop_location,
+        description,
+        is_active,
+        created_at,
+        updated_at
+      FROM products
+      ORDER BY id DESC
+    `);
 
-      const products =
-        rows.map(
-          normalizeProduct
-        );
+    const products =
+      rows.map(normalizeProduct);
 
-      const totalProducts =
-        products.length;
+    const totalProducts =
+      products.length;
 
-      const activeProducts =
-        products.filter(
-          (product) =>
-            product.IsActive
-        ).length;
+    const activeProducts =
+      products.filter(
+        (product) =>
+          product.IsActive
+      ).length;
 
-      const lowStock =
-        products.filter(
-          (product) =>
-            product.IsActive &&
-            product.StockQuantity >
-              0 &&
-            product.StockQuantity <=
-              product.MinimumStock
-        ).length;
+    const lowStock =
+      products.filter(
+        (product) =>
+          product.IsActive &&
+          product.StockQuantity > 0 &&
+          product.StockQuantity <=
+            product.MinimumStock
+      ).length;
 
-      const outOfStock =
-        products.filter(
-          (product) =>
-            product.IsActive &&
-            product.StockQuantity <=
-              0
-        ).length;
+    const outOfStock =
+      products.filter(
+        (product) =>
+          product.IsActive &&
+          product.StockQuantity <= 0
+      ).length;
 
-      return res.status(
-        200
-      ).json({
-        success: true,
+    return res.status(200).json({
+      success: true,
 
-        products,
+      products,
 
-        data: products,
+      data: products,
 
-        count:
-          totalProducts,
+      count: totalProducts,
 
-        stats: {
-          totalProducts,
-          activeProducts,
-          lowStock,
-          outOfStock,
-        },
-      });
-    } catch (error) {
-      console.error(
-        "GET PRODUCTS ERROR:",
-        error
-      );
+      stats: {
+        totalProducts,
+        activeProducts,
+        lowStock,
+        outOfStock,
+      },
+    });
+  } catch (error) {
+    console.error(
+      "GET PRODUCTS ERROR:",
+      error
+    );
 
-      return res.status(
-        500
-      ).json({
-        success: false,
-        message:
-          "Failed to fetch products",
-        error:
-          process.env.NODE_ENV ===
-          "development"
-            ? error.message
-            : undefined,
-      });
-    }
-  };
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to fetch products",
+      error:
+        process.env.NODE_ENV ===
+        "development"
+          ? error.message
+          : undefined,
+    });
+  }
+};
 
 // =====================================================
 // GET PRODUCT BY ID
@@ -358,15 +276,10 @@ export const getProducts =
 // =====================================================
 
 export const getProductById =
-  async (
-    req,
-    res
-  ) => {
+  async (req, res) => {
     try {
       const productId =
-        Number(
-          req.params.id
-        );
+        Number(req.params.id);
 
       if (
         !Number.isInteger(
@@ -374,13 +287,11 @@ export const getProductById =
         ) ||
         productId <= 0
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Invalid product ID",
-          });
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid product ID",
+        });
       }
 
       const [rows] =
@@ -406,16 +317,12 @@ export const getProductById =
           [productId]
         );
 
-      if (
-        rows.length === 0
-      ) {
-        return res
-          .status(404)
-          .json({
-            success: false,
-            message:
-              "Product not found",
-          });
+      if (rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Product not found",
+        });
       }
 
       const product =
@@ -423,9 +330,7 @@ export const getProductById =
           rows[0]
         );
 
-      return res.status(
-        200
-      ).json({
+      return res.status(200).json({
         success: true,
         product,
         data: product,
@@ -436,9 +341,7 @@ export const getProductById =
         error
       );
 
-      return res.status(
-        500
-      ).json({
+      return res.status(500).json({
         success: false,
         message:
           "Failed to fetch product",
@@ -454,13 +357,16 @@ export const getProductById =
 // =====================================================
 // CREATE PRODUCT
 // POST /api/products
+//
+// IMPORTANT:
+// Product create ke saath inventory record bhi
+// automatically create hoga.
 // =====================================================
 
 export const createProduct =
-  async (
-    req,
-    res
-  ) => {
+  async (req, res) => {
+    let connection = null;
+
     try {
       const {
         product_type,
@@ -482,64 +388,55 @@ export const createProduct =
         !product_name ||
         selling_price ===
           undefined ||
-        selling_price ===
-          ""
+        selling_price === ""
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Product type, product name and selling price are required.",
-          });
+        return res.status(400).json({
+          success: false,
+          message:
+            "Product type, product name and selling price are required.",
+        });
       }
 
       // =================================================
       // PRODUCT TYPE
       // =================================================
 
-      const allowedTypes =
-        [
-          "Frame",
-          "Sunglass",
-        ];
+      const allowedTypes = [
+        "Frame",
+        "Sunglass",
+      ];
 
       if (
         !allowedTypes.includes(
           product_type
         )
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Product type must be Frame or Sunglass.",
-          });
+        return res.status(400).json({
+          success: false,
+          message:
+            "Product type must be Frame or Sunglass.",
+        });
       }
 
       // =================================================
       // LOCATION
       // =================================================
 
-      const allowedLocations =
-        [
-          "Arjunganj",
-          "Telibag",
-        ];
+      const allowedLocations = [
+        "Arjunganj",
+        "Telibag",
+      ];
 
       if (
         !allowedLocations.includes(
           shop_location
         )
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Location must be Arjunganj or Telibag.",
-          });
+        return res.status(400).json({
+          success: false,
+          message:
+            "Location must be Arjunganj or Telibag.",
+        });
       }
 
       // =================================================
@@ -547,20 +444,16 @@ export const createProduct =
       // =================================================
 
       const price =
-        Number(
-          selling_price
-        );
+        Number(selling_price);
 
       const stock =
         Number(
-          stock_quantity ??
-            0
+          stock_quantity ?? 0
         );
 
       const minimum =
         Number(
-          minimum_stock ??
-            5
+          minimum_stock ?? 5
         );
 
       // =================================================
@@ -568,33 +461,25 @@ export const createProduct =
       // =================================================
 
       if (
-        !Number.isFinite(
-          price
-        ) ||
+        !Number.isFinite(price) ||
         price < 0
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Invalid selling price.",
-          });
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid selling price.",
+        });
       }
 
       if (
-        !Number.isInteger(
-          stock
-        ) ||
+        !Number.isInteger(stock) ||
         stock < 0
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Invalid stock quantity.",
-          });
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid stock quantity.",
+        });
       }
 
       if (
@@ -603,26 +488,22 @@ export const createProduct =
         ) ||
         minimum < 0
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Invalid minimum stock.",
-          });
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid minimum stock.",
+        });
       }
 
       // =================================================
       // IMAGES
       // =================================================
 
-      let productImages =
-        [];
+      let productImages = [];
 
       if (
         req.files &&
-        req.files.length >
-          0
+        req.files.length > 0
       ) {
         productImages =
           req.files.map(
@@ -637,11 +518,20 @@ export const createProduct =
         );
 
       // =================================================
-      // INSERT
+      // DATABASE CONNECTION
+      // =================================================
+
+      connection =
+        await db.getConnection();
+
+      await connection.beginTransaction();
+
+      // =================================================
+      // INSERT PRODUCT
       // =================================================
 
       const [result] =
-        await db.query(
+        await connection.query(
           `
           INSERT INTO products
           (
@@ -659,30 +549,58 @@ export const createProduct =
           `,
           [
             product_type,
-
             product_name.trim(),
-
             price,
-
             imageValue,
-
             stock,
-
             minimum,
-
             shop_location,
-
             description?.trim() ||
               null,
-
             is_active ===
-              undefined
+            undefined
               ? 1
               : Number(
                   is_active
                 ),
           ]
         );
+
+      const productId =
+        result.insertId;
+
+      // =================================================
+      // CREATE INVENTORY RECORD
+      //
+      // SAME EXISTING INVENTORY TABLE
+      // NO NEW TABLE
+      // =================================================
+
+      await connection.query(
+        `
+        INSERT INTO inventory
+        (
+          product_id,
+          purchased_quantity,
+          sold_quantity,
+          current_stock,
+          low_stock_limit
+        )
+        VALUES (?, ?, 0, ?, ?)
+        `,
+        [
+          productId,
+          stock,
+          stock,
+          minimum,
+        ]
+      );
+
+      // =================================================
+      // COMMIT
+      // =================================================
+
+      await connection.commit();
 
       // =================================================
       // FETCH CREATED PRODUCT
@@ -708,9 +626,7 @@ export const createProduct =
           WHERE id = ?
           LIMIT 1
           `,
-          [
-            result.insertId,
-          ]
+          [productId]
         );
 
       const product =
@@ -718,25 +634,38 @@ export const createProduct =
           rows[0]
         );
 
-      return res
-        .status(201)
-        .json({
-          success: true,
-          message:
-            "Product created successfully.",
-          product,
-          data: product,
-        });
+      return res.status(201).json({
+        success: true,
+
+        message:
+          "Product created successfully.",
+
+        product,
+
+        data: product,
+      });
     } catch (error) {
+      if (connection) {
+        try {
+          await connection.rollback();
+        } catch (rollbackError) {
+          console.error(
+            "CREATE PRODUCT ROLLBACK ERROR:",
+            rollbackError.message
+          );
+        }
+      }
+
       console.error(
         "CREATE PRODUCT ERROR:",
         error
       );
 
-      // Remove uploaded files
-      if (
-        req.files?.length
-      ) {
+      // =================================================
+      // REMOVE UPLOADED FILES IF DATABASE FAILED
+      // =================================================
+
+      if (req.files?.length) {
         req.files.forEach(
           (file) => {
             try {
@@ -761,18 +690,22 @@ export const createProduct =
         );
       }
 
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message:
-            "Failed to create product.",
-          error:
-            process.env.NODE_ENV ===
-            "development"
-              ? error.message
-              : undefined,
-        });
+      return res.status(500).json({
+        success: false,
+
+        message:
+          "Failed to create product.",
+
+        error:
+          process.env.NODE_ENV ===
+          "development"
+            ? error.message
+            : undefined,
+      });
+    } finally {
+      if (connection) {
+        connection.release();
+      }
     }
   };
 
@@ -782,15 +715,12 @@ export const createProduct =
 // =====================================================
 
 export const updateProduct =
-  async (
-    req,
-    res
-  ) => {
+  async (req, res) => {
+    let connection = null;
+
     try {
       const productId =
-        Number(
-          req.params.id
-        );
+        Number(req.params.id);
 
       if (
         !Number.isInteger(
@@ -798,17 +728,15 @@ export const updateProduct =
         ) ||
         productId <= 0
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Invalid product ID.",
-          });
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid product ID.",
+        });
       }
 
       // =================================================
-      // GET EXISTING
+      // GET EXISTING PRODUCT
       // =================================================
 
       const [existingRows] =
@@ -816,7 +744,9 @@ export const updateProduct =
           `
           SELECT
             id,
-            product_image
+            product_image,
+            stock_quantity,
+            minimum_stock
           FROM products
           WHERE id = ?
           LIMIT 1
@@ -825,16 +755,13 @@ export const updateProduct =
         );
 
       if (
-        existingRows.length ===
-        0
+        existingRows.length === 0
       ) {
-        return res
-          .status(404)
-          .json({
-            success: false,
-            message:
-              "Product not found.",
-          });
+        return res.status(404).json({
+          success: false,
+          message:
+            "Product not found.",
+        });
       }
 
       const existing =
@@ -860,27 +787,22 @@ export const updateProduct =
       // VALIDATE TYPE
       // =================================================
 
-      if (
-        product_type
-      ) {
-        const allowedTypes =
-          [
-            "Frame",
-            "Sunglass",
-          ];
+      if (product_type) {
+        const allowedTypes = [
+          "Frame",
+          "Sunglass",
+        ];
 
         if (
           !allowedTypes.includes(
             product_type
           )
         ) {
-          return res
-            .status(400)
-            .json({
-              success: false,
-              message:
-                "Product type must be Frame or Sunglass.",
-            });
+          return res.status(400).json({
+            success: false,
+            message:
+              "Product type must be Frame or Sunglass.",
+          });
         }
       }
 
@@ -888,27 +810,22 @@ export const updateProduct =
       // VALIDATE LOCATION
       // =================================================
 
-      if (
-        shop_location
-      ) {
-        const allowedLocations =
-          [
-            "Arjunganj",
-            "Telibag",
-          ];
+      if (shop_location) {
+        const allowedLocations = [
+          "Arjunganj",
+          "Telibag",
+        ];
 
         if (
           !allowedLocations.includes(
             shop_location
           )
         ) {
-          return res
-            .status(400)
-            .json({
-              success: false,
-              message:
-                "Location must be Arjunganj or Telibag.",
-            });
+          return res.status(400).json({
+            success: false,
+            message:
+              "Location must be Arjunganj or Telibag.",
+          });
         }
       }
 
@@ -919,8 +836,7 @@ export const updateProduct =
       const price =
         selling_price !==
           undefined &&
-        selling_price !==
-          ""
+        selling_price !== ""
           ? Number(
               selling_price
             )
@@ -929,8 +845,7 @@ export const updateProduct =
       const stock =
         stock_quantity !==
           undefined &&
-        stock_quantity !==
-          ""
+        stock_quantity !== ""
           ? Number(
               stock_quantity
             )
@@ -939,62 +854,60 @@ export const updateProduct =
       const minimum =
         minimum_stock !==
           undefined &&
-        minimum_stock !==
-          ""
+        minimum_stock !== ""
           ? Number(
               minimum_stock
             )
           : undefined;
 
+      // =================================================
+      // VALIDATE PRICE
+      // =================================================
+
       if (
-        price !==
-          undefined &&
-        (!Number.isFinite(
-          price
-        ) ||
+        price !== undefined &&
+        (!Number.isFinite(price) ||
           price < 0)
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Invalid selling price.",
-          });
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid selling price.",
+        });
       }
 
+      // =================================================
+      // VALIDATE STOCK
+      // =================================================
+
       if (
-        stock !==
-          undefined &&
-        (!Number.isInteger(
-          stock
-        ) ||
+        stock !== undefined &&
+        (!Number.isInteger(stock) ||
           stock < 0)
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Invalid stock quantity.",
-          });
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid stock quantity.",
+        });
       }
 
+      // =================================================
+      // VALIDATE MINIMUM STOCK
+      // =================================================
+
       if (
-        minimum !==
-          undefined &&
+        minimum !== undefined &&
         (!Number.isInteger(
           minimum
         ) ||
           minimum < 0)
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Invalid minimum stock.",
-          });
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid minimum stock.",
+        });
       }
 
       // =================================================
@@ -1010,13 +923,11 @@ export const updateProduct =
       // NEW UPLOADED IMAGES
       // =================================================
 
-      let newImages =
-        [];
+      let newImages = [];
 
       if (
         req.files &&
-        req.files.length >
-          0
+        req.files.length > 0
       ) {
         newImages =
           req.files.map(
@@ -1026,7 +937,7 @@ export const updateProduct =
       }
 
       // =================================================
-      // COMBINE
+      // COMBINE IMAGES
       // =================================================
 
       let finalImages = [
@@ -1040,10 +951,7 @@ export const updateProduct =
             Boolean
           )
         ),
-      ].slice(
-        0,
-        5
-      );
+      ].slice(0, 5);
 
       // =================================================
       // DELETE REMOVED OLD IMAGES
@@ -1076,10 +984,19 @@ export const updateProduct =
         );
 
       // =================================================
-      // UPDATE
+      // DATABASE CONNECTION
       // =================================================
 
-      await db.query(
+      connection =
+        await db.getConnection();
+
+      await connection.beginTransaction();
+
+      // =================================================
+      // UPDATE PRODUCT
+      // =================================================
+
+      await connection.query(
         `
         UPDATE products
         SET
@@ -1157,12 +1074,12 @@ export const updateProduct =
             null,
 
           description !==
-            undefined
+          undefined
             ? description.trim()
             : null,
 
           is_active !==
-            undefined
+          undefined
             ? Number(
                 is_active
               )
@@ -1173,7 +1090,92 @@ export const updateProduct =
       );
 
       // =================================================
-      // FETCH UPDATED
+      // SYNC INVENTORY
+      //
+      // If inventory record exists:
+      // update current stock + low stock limit.
+      //
+      // If it doesn't exist:
+      // create it.
+      // =================================================
+
+      const [
+        inventoryRows,
+      ] =
+        await connection.query(
+          `
+          SELECT
+            id
+          FROM inventory
+          WHERE product_id = ?
+          LIMIT 1
+          `,
+          [productId]
+        );
+
+      const finalStock =
+        stock !== undefined
+          ? stock
+          : Number(
+              existing.stock_quantity ??
+                0
+            );
+
+      const finalMinimum =
+        minimum !== undefined
+          ? minimum
+          : Number(
+              existing.minimum_stock ??
+                5
+            );
+
+      if (
+        inventoryRows.length > 0
+      ) {
+        await connection.query(
+          `
+          UPDATE inventory
+          SET
+            current_stock = ?,
+            low_stock_limit = ?
+          WHERE product_id = ?
+          `,
+          [
+            finalStock,
+            finalMinimum,
+            productId,
+          ]
+        );
+      } else {
+        await connection.query(
+          `
+          INSERT INTO inventory
+          (
+            product_id,
+            purchased_quantity,
+            sold_quantity,
+            current_stock,
+            low_stock_limit
+          )
+          VALUES (?, ?, 0, ?, ?)
+          `,
+          [
+            productId,
+            finalStock,
+            finalStock,
+            finalMinimum,
+          ]
+        );
+      }
+
+      // =================================================
+      // COMMIT
+      // =================================================
+
+      await connection.commit();
+
+      // =================================================
+      // FETCH UPDATED PRODUCT
       // =================================================
 
       const [rows] =
@@ -1204,25 +1206,38 @@ export const updateProduct =
           rows[0]
         );
 
-      return res.status(
-        200
-      ).json({
+      return res.status(200).json({
         success: true,
+
         message:
           "Product updated successfully.",
+
         product,
+
         data: product,
       });
     } catch (error) {
+      if (connection) {
+        try {
+          await connection.rollback();
+        } catch (rollbackError) {
+          console.error(
+            "UPDATE PRODUCT ROLLBACK ERROR:",
+            rollbackError.message
+          );
+        }
+      }
+
       console.error(
         "UPDATE PRODUCT ERROR:",
         error
       );
 
-      // Remove newly uploaded files
-      if (
-        req.files?.length
-      ) {
+      // =================================================
+      // REMOVE NEWLY UPLOADED FILES
+      // =================================================
+
+      if (req.files?.length) {
         req.files.forEach(
           (file) => {
             try {
@@ -1247,18 +1262,22 @@ export const updateProduct =
         );
       }
 
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message:
-            "Failed to update product.",
-          error:
-            process.env.NODE_ENV ===
-            "development"
-              ? error.message
-              : undefined,
-        });
+      return res.status(500).json({
+        success: false,
+
+        message:
+          "Failed to update product.",
+
+        error:
+          process.env.NODE_ENV ===
+          "development"
+            ? error.message
+            : undefined,
+      });
+    } finally {
+      if (connection) {
+        connection.release();
+      }
     }
   };
 
@@ -1268,15 +1287,10 @@ export const updateProduct =
 // =====================================================
 
 export const deleteProduct =
-  async (
-    req,
-    res
-  ) => {
+  async (req, res) => {
     try {
       const productId =
-        Number(
-          req.params.id
-        );
+        Number(req.params.id);
 
       if (
         !Number.isInteger(
@@ -1284,13 +1298,11 @@ export const deleteProduct =
         ) ||
         productId <= 0
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Invalid product ID.",
-          });
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid product ID.",
+        });
       }
 
       const [rows] =
@@ -1305,19 +1317,18 @@ export const deleteProduct =
           [productId]
         );
 
-      if (
-        rows.length === 0
-      ) {
-        return res
-          .status(404)
-          .json({
-            success: false,
-            message:
-              "Product not found.",
-          });
+      if (rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Product not found.",
+        });
       }
 
-      // Soft delete
+      // =================================================
+      // SOFT DELETE
+      // =================================================
+
       await db.query(
         `
         UPDATE products
@@ -1327,31 +1338,27 @@ export const deleteProduct =
         [productId]
       );
 
-      return res
-        .status(200)
-        .json({
-          success: true,
-          message:
-            "Product deleted successfully.",
-        });
+      return res.status(200).json({
+        success: true,
+        message:
+          "Product deleted successfully.",
+      });
     } catch (error) {
       console.error(
         "DELETE PRODUCT ERROR:",
         error
       );
 
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message:
-            "Failed to delete product.",
-          error:
-            process.env.NODE_ENV ===
-            "development"
-              ? error.message
-              : undefined,
-        });
+      return res.status(500).json({
+        success: false,
+        message:
+          "Failed to delete product.",
+        error:
+          process.env.NODE_ENV ===
+          "development"
+            ? error.message
+            : undefined,
+      });
     }
   };
 
@@ -1361,15 +1368,10 @@ export const deleteProduct =
 // =====================================================
 
 export const restoreProduct =
-  async (
-    req,
-    res
-  ) => {
+  async (req, res) => {
     try {
       const productId =
-        Number(
-          req.params.id
-        );
+        Number(req.params.id);
 
       if (
         !Number.isInteger(
@@ -1377,13 +1379,11 @@ export const restoreProduct =
         ) ||
         productId <= 0
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Invalid product ID.",
-          });
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid product ID.",
+        });
       }
 
       const [result] =
@@ -1397,42 +1397,103 @@ export const restoreProduct =
         );
 
       if (
-        result.affectedRows ===
-        0
+        result.affectedRows === 0
       ) {
-        return res
-          .status(404)
-          .json({
-            success: false,
-            message:
-              "Product not found.",
-          });
+        return res.status(404).json({
+          success: false,
+          message:
+            "Product not found.",
+        });
       }
 
-      return res
-        .status(200)
-        .json({
-          success: true,
-          message:
-            "Product restored successfully.",
-        });
+      // =================================================
+      // MAKE SURE INVENTORY EXISTS
+      // =================================================
+
+      const [products] =
+        await db.query(
+          `
+          SELECT
+            stock_quantity,
+            minimum_stock
+          FROM products
+          WHERE id = ?
+          LIMIT 1
+          `,
+          [productId]
+        );
+
+      if (
+        products.length > 0
+      ) {
+        const [inventory] =
+          await db.query(
+            `
+            SELECT id
+            FROM inventory
+            WHERE product_id = ?
+            LIMIT 1
+            `,
+            [productId]
+          );
+
+        if (
+          inventory.length === 0
+        ) {
+          await db.query(
+            `
+            INSERT INTO inventory
+            (
+              product_id,
+              purchased_quantity,
+              sold_quantity,
+              current_stock,
+              low_stock_limit
+            )
+            VALUES (?, ?, 0, ?, ?)
+            `,
+            [
+              productId,
+              Number(
+                products[0]
+                  .stock_quantity ||
+                  0
+              ),
+              Number(
+                products[0]
+                  .stock_quantity ||
+                  0
+              ),
+              Number(
+                products[0]
+                  .minimum_stock ||
+                  5
+              ),
+            ]
+          );
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Product restored successfully.",
+      });
     } catch (error) {
       console.error(
         "RESTORE PRODUCT ERROR:",
         error
       );
 
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message:
-            "Failed to restore product.",
-          error:
-            process.env.NODE_ENV ===
-            "development"
-              ? error.message
-              : undefined,
-        });
+      return res.status(500).json({
+        success: false,
+        message:
+          "Failed to restore product.",
+        error:
+          process.env.NODE_ENV ===
+          "development"
+            ? error.message
+            : undefined,
+      });
     }
   };
