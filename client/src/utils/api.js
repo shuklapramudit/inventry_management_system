@@ -5,7 +5,6 @@
 const API_BASE_URL =
   "https://inventry-management-system-1-obf0.onrender.com/api";
 
-
 // =====================================================
 // GET API BASE URL
 // =====================================================
@@ -13,7 +12,6 @@ const API_BASE_URL =
 export const getApiBaseUrl = () => {
   return API_BASE_URL;
 };
-
 
 // =====================================================
 // GET AUTH TOKEN
@@ -28,7 +26,6 @@ const getToken = () => {
   );
 };
 
-
 // =====================================================
 // API REQUEST
 // =====================================================
@@ -37,7 +34,6 @@ const apiRequest = async (
   endpoint,
   options = {}
 ) => {
-
   // -------------------------------------------------
   // NORMALIZE ENDPOINT
   // -------------------------------------------------
@@ -52,7 +48,6 @@ const apiRequest = async (
       `/${cleanEndpoint}`;
   }
 
-
   // -------------------------------------------------
   // PREVENT DUPLICATE /api
   // -------------------------------------------------
@@ -62,12 +57,9 @@ const apiRequest = async (
       .toLowerCase()
       .startsWith("/api/")
   ) {
-
     cleanEndpoint =
       cleanEndpoint.substring(4);
-
   }
-
 
   // -------------------------------------------------
   // BUILD URL
@@ -76,12 +68,10 @@ const apiRequest = async (
   const url =
     `${API_BASE_URL}${cleanEndpoint}`;
 
-
   console.log(
     "API Request:",
     url
   );
-
 
   // -------------------------------------------------
   // TOKEN
@@ -89,7 +79,6 @@ const apiRequest = async (
 
   const token =
     getToken();
-
 
   // -------------------------------------------------
   // HEADERS
@@ -99,14 +88,12 @@ const apiRequest = async (
     ...(options.headers || {}),
   };
 
-
   // -------------------------------------------------
   // FORM DATA CHECK
   // -------------------------------------------------
 
   const isFormData =
     options.body instanceof FormData;
-
 
   // -------------------------------------------------
   // JSON CONTENT TYPE
@@ -118,24 +105,18 @@ const apiRequest = async (
     options.body !== null &&
     !headers["Content-Type"]
   ) {
-
     headers["Content-Type"] =
       "application/json";
-
   }
-
 
   // -------------------------------------------------
   // AUTHORIZATION
   // -------------------------------------------------
 
   if (token) {
-
     headers.Authorization =
       `Bearer ${token}`;
-
   }
-
 
   // -------------------------------------------------
   // REQUEST
@@ -144,7 +125,6 @@ const apiRequest = async (
   let response;
 
   try {
-
     response =
       await fetch(
         url,
@@ -153,9 +133,7 @@ const apiRequest = async (
           headers,
         }
       );
-
   } catch (error) {
-
     console.error(
       "Network Error:",
       error
@@ -164,9 +142,7 @@ const apiRequest = async (
     throw new Error(
       "Unable to connect to server. Please check your internet connection or backend server."
     );
-
   }
-
 
   // -------------------------------------------------
   // RESPONSE TYPE
@@ -179,7 +155,6 @@ const apiRequest = async (
 
   let data = null;
 
-
   // -------------------------------------------------
   // JSON RESPONSE
   // -------------------------------------------------
@@ -189,29 +164,20 @@ const apiRequest = async (
       "application/json"
     )
   ) {
-
     try {
-
       data =
         await response.json();
-
     } catch {
-
       data = null;
-
     }
-
   }
-
 
   // -------------------------------------------------
   // TEXT RESPONSE
   // -------------------------------------------------
 
   else {
-
     try {
-
       const text =
         await response.text();
 
@@ -223,22 +189,16 @@ const apiRequest = async (
               text,
           }
         : null;
-
     } catch {
-
       data = null;
-
     }
-
   }
-
 
   // -------------------------------------------------
   // HTTP ERROR
   // -------------------------------------------------
 
   if (!response.ok) {
-
     const error =
       new Error(
         data?.message ||
@@ -252,7 +212,6 @@ const apiRequest = async (
     error.data =
       data;
 
-
     // -------------------------------------------------
     // UNAUTHORIZED
     // -------------------------------------------------
@@ -260,13 +219,10 @@ const apiRequest = async (
     if (
       response.status === 401
     ) {
-
       error.message =
         data?.message ||
         "Authorization failed. Please login again.";
-
     }
-
 
     // -------------------------------------------------
     // NOT FOUND
@@ -275,27 +231,20 @@ const apiRequest = async (
     if (
       response.status === 404
     ) {
-
       error.message =
         data?.message ||
         "Requested API route was not found.";
-
     }
 
-
     throw error;
-
   }
-
 
   // -------------------------------------------------
   // SUCCESS
   // -------------------------------------------------
 
   return data;
-
 };
-
 
 // =====================================================
 // DEFAULT EXPORT

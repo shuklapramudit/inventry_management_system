@@ -42,8 +42,7 @@ const app = express();
 // PORT
 // =====================================================
 
-const PORT =
-  process.env.PORT || 5000;
+const PORT = process.env.PORT || 5000;
 
 // =====================================================
 // CORS
@@ -130,12 +129,20 @@ try {
 }
 
 // =====================================================
-// STATIC PRODUCT UPLOADS
+// STATIC UPLOADS
 // =====================================================
 //
-// Product images are available at:
+// Everything inside:
 //
-// /uploads/products/filename.jpg
+// server/uploads
+//
+// will be publicly available through:
+//
+// /uploads
+//
+// Example:
+//
+// /uploads/products/example.jpg
 //
 // =====================================================
 
@@ -281,9 +288,11 @@ app.use(
 // 404 NOT FOUND
 // =====================================================
 //
-// IMPORTANT:
-// This must remain AFTER all API routes
-// and static routes.
+// This must remain AFTER:
+//
+// 1. Static uploads
+// 2. Health check
+// 3. All API routes
 //
 // =====================================================
 
