@@ -1,11 +1,5 @@
 import db from "../config/db.js";
 
-
-// =====================================================
-// GET ALL INVENTORY
-// GET /api/inventory
-// =====================================================
-
 // =====================================================
 // GET ALL INVENTORY
 // GET /api/inventory
@@ -15,71 +9,74 @@ export const getInventory = async (
   req,
   res
 ) => {
+
   try {
 
-    const [rows] = await db.query(
-      `
-      SELECT
-        i.id,
-        i.product_id,
+    const [rows] =
+      await db.query(
+        `
+        SELECT
+          i.id,
+          i.product_id,
 
-        p.product_type,
-        p.product_name,
-        p.selling_price,
-        p.product_image,
-        p.shop_location,
-        p.description,
-        p.is_active,
+          p.product_type,
+          p.product_name,
+          p.selling_price,
+          p.product_image,
+          p.shop_location,
+          p.description,
+          p.is_active,
 
-        COALESCE(
-          i.purchased_quantity,
-          0
-        ) AS purchased_quantity,
+          COALESCE(
+            i.purchased_quantity,
+            0
+          ) AS purchased_quantity,
 
-        /*
-        IMPORTANT:
-        Sold quantity is calculated from actual sale_items.
-        Do NOT use inventory.sold_quantity because
-        that value may contain old/wrong data.
-        */
+          /*
+           * IMPORTANT:
+           * Sold quantity must come from actual sales.
+           *
+           * Do NOT use i.sold_quantity here because
+           * that value can contain old/manual inventory data.
+           */
+          COALESCE(
+            (
+              SELECT
+                SUM(si.quantity)
+              FROM sale_items si
+              INNER JOIN sales s
+                ON s.id = si.sale_id
+              WHERE
+                si.product_id = i.product_id
+            ),
+            0
+          ) AS sold_quantity,
 
-        COALESCE(
-          (
-            SELECT SUM(si.quantity)
-            FROM sale_items si
-            INNER JOIN sales s
-              ON s.id = si.sale_id
-            WHERE
-              si.product_id = i.product_id
-          ),
-          0
-        ) AS sold_quantity,
+          COALESCE(
+            i.current_stock,
+            0
+          ) AS current_stock,
 
-        COALESCE(
-          i.current_stock,
-          0
-        ) AS current_stock,
+          COALESCE(
+            i.low_stock_limit,
+            5
+          ) AS low_stock_limit,
 
-        COALESCE(
-          i.low_stock_limit,
-          5
-        ) AS low_stock_limit,
+          i.updated_at
 
-        i.updated_at
+        FROM inventory i
 
-      FROM inventory i
+        INNER JOIN products p
+          ON p.id = i.product_id
 
-      INNER JOIN products p
-        ON p.id = i.product_id
+        WHERE
+          p.is_active = 1
 
-      WHERE
-        p.is_active = 1
-
-      ORDER BY
-        i.current_stock ASC,
-        p.product_name ASC
-      `
-    );
+        ORDER BY
+          i.current_stock ASC,
+          p.product_name ASC
+        `
+      );
 
 
     const inventory =
@@ -108,6 +105,10 @@ export const getInventory = async (
               item.purchased_quantity || 0
             ),
 
+          /*
+           * This is now the REAL sold quantity
+           * calculated from sale_items.
+           */
           sold_quantity:
             Number(
               item.sold_quantity || 0
@@ -145,7 +146,6 @@ export const getInventory = async (
       error
     );
 
-
     return res.status(500).json({
 
       success: false,
@@ -162,11 +162,12 @@ export const getInventory = async (
     });
 
   }
+
 };
 
 
 // =====================================================
-// GET OUT OF STOCK
+// GET OUT OF STOCK / LOW STOCK
 // GET /api/inventory/low-stock
 // =====================================================
 
@@ -230,14 +231,12 @@ export const getLowStock = async (
 
             current_stock:
               Number(
-                item.current_stock ||
-                0
+                item.current_stock || 0
               ),
 
             low_stock_limit:
               Number(
-                item.low_stock_limit ||
-                5
+                item.low_stock_limit || 5
               ),
 
           })
@@ -252,7 +251,6 @@ export const getLowStock = async (
       error
     );
 
-
     return res.status(500).json({
 
       success: false,
@@ -265,6 +263,7 @@ export const getLowStock = async (
     });
 
   }
+
 };
 
 
@@ -310,6 +309,7 @@ export const getInventoryByProduct =
         await db.query(
           `
           SELECT
+
             i.id,
             i.product_id,
 
@@ -325,8 +325,20 @@ export const getInventoryByProduct =
               0
             ) AS purchased_quantity,
 
+            /*
+             * REAL SOLD QUANTITY
+             * FROM ACTUAL SALES
+             */
             COALESCE(
-              i.sold_quantity,
+              (
+                SELECT
+                  SUM(si.quantity)
+                FROM sale_items si
+                INNER JOIN sales s
+                  ON s.id = si.sale_id
+                WHERE
+                  si.product_id = i.product_id
+              ),
               0
             ) AS sold_quantity,
 
@@ -385,7 +397,9 @@ export const getInventoryByProduct =
           ...item,
 
           id:
-            Number(item.id),
+            Number(
+              item.id
+            ),
 
           product_id:
             Number(
@@ -394,32 +408,27 @@ export const getInventoryByProduct =
 
           selling_price:
             Number(
-              item.selling_price ||
-              0
+              item.selling_price || 0
             ),
 
           purchased_quantity:
             Number(
-              item.purchased_quantity ||
-              0
+              item.purchased_quantity || 0
             ),
 
           sold_quantity:
             Number(
-              item.sold_quantity ||
-              0
+              item.sold_quantity || 0
             ),
 
           current_stock:
             Number(
-              item.current_stock ||
-              0
+              item.current_stock || 0
             ),
 
           low_stock_limit:
             Number(
-              item.low_stock_limit ||
-              5
+              item.low_stock_limit || 5
             ),
 
         },
@@ -446,6 +455,7 @@ export const getInventoryByProduct =
       });
 
     }
+
   };
 
 
@@ -474,11 +484,15 @@ export const addPurchase =
 
 
       const productId =
-        Number(product_id);
+        Number(
+          product_id
+        );
 
 
       const qty =
-        Number(quantity);
+        Number(
+          quantity
+        );
 
 
       const purchasePrice =
@@ -486,6 +500,10 @@ export const addPurchase =
           purchase_price
         );
 
+
+      // ---------------------------------------------
+      // VALIDATE PRODUCT ID
+      // ---------------------------------------------
 
       if (
         !Number.isInteger(
@@ -506,6 +524,10 @@ export const addPurchase =
       }
 
 
+      // ---------------------------------------------
+      // VALIDATE QUANTITY
+      // ---------------------------------------------
+
       if (
         !Number.isInteger(qty) ||
         qty <= 0
@@ -522,6 +544,10 @@ export const addPurchase =
 
       }
 
+
+      // ---------------------------------------------
+      // VALIDATE PURCHASE PRICE
+      // ---------------------------------------------
 
       if (
         !Number.isFinite(
@@ -572,7 +598,6 @@ export const addPurchase =
 
         await connection.rollback();
 
-
         return res.status(404).json({
 
           success: false,
@@ -598,12 +623,17 @@ export const addPurchase =
             id,
             current_stock
           FROM inventory
-          WHERE product_id = ?
+          WHERE
+            product_id = ?
           FOR UPDATE
           `,
           [productId]
         );
 
+
+      // ---------------------------------------------
+      // CREATE INVENTORY RECORD
+      // ---------------------------------------------
 
       if (
         inventory.length === 0
@@ -631,6 +661,10 @@ export const addPurchase =
 
       } else {
 
+        // -------------------------------------------
+        // ADD PURCHASE TO EXISTING STOCK
+        // -------------------------------------------
+
         await connection.query(
           `
           UPDATE inventory
@@ -642,7 +676,8 @@ export const addPurchase =
             current_stock =
               current_stock + ?
 
-          WHERE product_id = ?
+          WHERE
+            product_id = ?
           `,
           [
             qty,
@@ -708,22 +743,19 @@ export const addPurchase =
           current_stock:
             Number(
               updated[0]
-                ?.current_stock ||
-              0
+                ?.current_stock || 0
             ),
 
           purchased_quantity:
             Number(
               updated[0]
-                ?.purchased_quantity ||
-              0
+                ?.purchased_quantity || 0
             ),
 
           sold_quantity:
             Number(
               updated[0]
-                ?.sold_quantity ||
-              0
+                ?.sold_quantity || 0
             ),
 
         },
@@ -757,6 +789,7 @@ export const addPurchase =
       connection.release();
 
     }
+
   };
 
 
@@ -789,6 +822,10 @@ export const adjustStock =
         );
 
 
+      // ---------------------------------------------
+      // VALIDATE PRODUCT ID
+      // ---------------------------------------------
+
       if (
         !Number.isInteger(
           productId
@@ -807,6 +844,10 @@ export const adjustStock =
 
       }
 
+
+      // ---------------------------------------------
+      // VALIDATE ADJUSTMENT
+      // ---------------------------------------------
 
       if (
         !Number.isInteger(
@@ -830,6 +871,10 @@ export const adjustStock =
       await connection.beginTransaction();
 
 
+      // ---------------------------------------------
+      // GET CURRENT STOCK
+      // ---------------------------------------------
+
       const [
         rows,
       ] =
@@ -838,7 +883,8 @@ export const adjustStock =
           SELECT
             current_stock
           FROM inventory
-          WHERE product_id = ?
+          WHERE
+            product_id = ?
           FOR UPDATE
           `,
           [productId]
@@ -850,7 +896,6 @@ export const adjustStock =
       ) {
 
         await connection.rollback();
-
 
         return res.status(404).json({
 
@@ -877,12 +922,15 @@ export const adjustStock =
         adjustment;
 
 
+      // ---------------------------------------------
+      // PREVENT NEGATIVE STOCK
+      // ---------------------------------------------
+
       if (
         newStock < 0
       ) {
 
         await connection.rollback();
-
 
         return res.status(400).json({
 
@@ -896,14 +944,18 @@ export const adjustStock =
       }
 
 
+      // ---------------------------------------------
+      // UPDATE STOCK
+      // ---------------------------------------------
+
       await connection.query(
         `
         UPDATE inventory
-
         SET
           current_stock = ?
 
-        WHERE product_id = ?
+        WHERE
+          product_id = ?
         `,
         [
           newStock,
@@ -959,4 +1011,5 @@ export const adjustStock =
       connection.release();
 
     }
+
   };
