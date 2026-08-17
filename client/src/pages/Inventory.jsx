@@ -1,1241 +1,786 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import React, { useEffect, useMemo, useState } from "react";
+
+import "./Inventory.css";
 
 import {
   getInventory,
-  getLowStock,
   addPurchase,
   adjustStock,
 } from "../services/inventoryService.js";
 
-import "./Inventory.css";
-
-
 // =====================================================
-// BACKEND BASE URL
+// API
 // =====================================================
-
-const RAW_API_URL =
-  import.meta.env.VITE_API_URL ||
-  "https://inventry-management-system-1-obf0.onrender.com/api";
-
-
 // =====================================================
-// GET BACKEND URL
+// API URL
 // =====================================================
 
-const getBackendUrl = () => {
+const API = import.meta.env.VITE_API_URL;
 
-  const apiUrl = String(
-    RAW_API_URL || ""
-  )
-    .trim()
-    .replace(/\/+$/, "");
+const SERVER_URL = import.meta.env.VITE_SERVER_URL;
 
-  return apiUrl.replace(
-    /\/api$/i,
-    ""
-  );
-};
-
+export { API, SERVER_URL };
 
 // =====================================================
-// PRODUCT IMAGE URL
+// IMAGE URL HELPER
 // =====================================================
 
-const getProductImageUrl = (
-  image
-) => {
-
+const getImageUrl = (image) => {
   if (!image) {
     return "";
   }
 
-  let imagePath = String(
-    image
-  ).trim();
+  let imageValue = image;
 
-  if (!imagePath) {
+  // -----------------------------------------------
+  // OBJECT IMAGE
+  // -----------------------------------------------
+
+  if (typeof imageValue === "object") {
+    imageValue =
+      imageValue.url ||
+      imageValue.image ||
+      imageValue.imageUrl ||
+      imageValue.imageURL ||
+      imageValue.ImageURL ||
+      imageValue.product_image ||
+      imageValue.productImage ||
+      "";
+  }
+
+  if (!imageValue) {
     return "";
   }
 
+  imageValue = String(imageValue).trim();
 
-  // ---------------------------------------------------
-  // Already complete URL
-  // ---------------------------------------------------
+  if (!imageValue) {
+    return "";
+  }
+
+  // -----------------------------------------------
+  // JSON STRING
+  // -----------------------------------------------
+
+  if (imageValue.startsWith("[") && imageValue.endsWith("]")) {
+    try {
+      const parsed = JSON.parse(imageValue);
+
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return getImageUrl(parsed[0]);
+      }
+    } catch {
+      // Continue normally
+    }
+  }
+
+  // -----------------------------------------------
+  // FULL URL
+  // -----------------------------------------------
 
   if (
-    imagePath.startsWith(
-      "http://"
-    ) ||
-    imagePath.startsWith(
-      "https://"
-    )
+    imageValue.startsWith("http://") ||
+    imageValue.startsWith("https://") ||
+    imageValue.startsWith("data:")
   ) {
-
-    return imagePath;
+    return imageValue;
   }
 
+  // -----------------------------------------------
+  // /uploads/...
+  // -----------------------------------------------
 
-  // ---------------------------------------------------
-  // Convert Windows path to URL path
-  // ---------------------------------------------------
-
-  imagePath =
-    imagePath.replace(
-      /\\/g,
-      "/"
-    );
-
-
-  // ---------------------------------------------------
-  // Remove accidental frontend/API prefixes
-  // ---------------------------------------------------
-
-  imagePath =
-    imagePath.replace(
-      /^https?:\/\/[^/]+/i,
-      ""
-    );
-
-
-  imagePath =
-    imagePath.replace(
-      /^\/+/,
-      ""
-    );
-
-
-  imagePath =
-    imagePath.replace(
-      /^api\/+/i,
-      ""
-    );
-
-
-  // ---------------------------------------------------
-  // Backend URL
-  // ---------------------------------------------------
-
-  const backendUrl =
-    getBackendUrl();
-
-
-  return `${backendUrl}/${imagePath}`;
-};
-
-
-// =====================================================
-// GET PRODUCT IMAGE FROM OBJECT
-// =====================================================
-
-const getProductImage = (
-  item
-) => {
-
-  return (
-    item?.image ||
-    item?.Image ||
-    item?.productImage ||
-    item?.ProductImage ||
-    item?.imageUrl ||
-    item?.ImageURL ||
-    item?.product_image ||
-    item?.Product_Image ||
-    item?.image_path ||
-    item?.ImagePath ||
-    ""
-  );
-};
-
-
-// =====================================================
-// NORMALIZE NUMBER
-// =====================================================
-
-const toNumber = (
-  value
-) => {
-
-  const number =
-    Number(value);
-
-  return Number.isFinite(
-    number
-  )
-    ? number
-    : 0;
-};
-
-
-// =====================================================
-// GET PRODUCT NAME
-// =====================================================
-
-const getProductName = (
-  item
-) => {
-
-  return (
-    item?.productName ||
-    item?.ProductName ||
-    item?.name ||
-    item?.Name ||
-    item?.product_name ||
-    "Unknown Product"
-  );
-};
-
-
-// =====================================================
-// GET PRODUCT ID
-// =====================================================
-
-const getProductId = (
-  item
-) => {
-
-  return (
-    item?.productId ??
-    item?.ProductID ??
-    item?.ProductId ??
-    item?.id ??
-    item?.ID ??
-    ""
-  );
-};
-
-
-// =====================================================
-// GET PRODUCT TYPE
-// =====================================================
-
-const getProductType = (
-  item
-) => {
-
-  return (
-    item?.productType ||
-    item?.ProductType ||
-    item?.type ||
-    item?.Type ||
-    item?.category ||
-    item?.Category ||
-    "-"
-  );
-};
-
-
-// =====================================================
-// GET SHOP
-// =====================================================
-
-const getShop = (
-  item
-) => {
-
-  return (
-    item?.shopName ||
-    item?.ShopName ||
-    item?.shop ||
-    item?.Shop ||
-    item?.storeName ||
-    item?.StoreName ||
-    "-"
-  );
-};
-
-
-// =====================================================
-// GET PURCHASED
-// =====================================================
-
-const getPurchased = (
-  item
-) => {
-
-  return toNumber(
-    item?.purchased ??
-    item?.Purchased ??
-    item?.totalPurchased ??
-    item?.TotalPurchased ??
-    item?.purchaseQuantity ??
-    item?.PurchaseQuantity
-  );
-};
-
-
-// =====================================================
-// GET SOLD
-// =====================================================
-
-const getSold = (
-  item
-) => {
-
-  return toNumber(
-    item?.sold ??
-    item?.Sold ??
-    item?.totalSold ??
-    item?.TotalSold ??
-    item?.soldQuantity ??
-    item?.SoldQuantity
-  );
-};
-
-
-// =====================================================
-// GET CURRENT STOCK
-// =====================================================
-
-const getCurrentStock = (
-  item
-) => {
-
-  const directStock =
-    item?.currentStock ??
-    item?.CurrentStock ??
-    item?.stock ??
-    item?.Stock ??
-    item?.quantity ??
-    item?.Quantity;
-
-  if (
-    directStock !==
-      undefined &&
-    directStock !== null
-  ) {
-
-    return toNumber(
-      directStock
-    );
+  if (imageValue.startsWith("/uploads/")) {
+    return `${SERVER_URL}${imageValue}`;
   }
 
+  // -----------------------------------------------
+  // uploads/...
+  // -----------------------------------------------
 
-  return (
-    getPurchased(item) -
-    getSold(item)
-  );
-};
-
-
-// =====================================================
-// GET LOW STOCK LIMIT
-// =====================================================
-
-const getLowStockLimit = (
-  item
-) => {
-
-  return toNumber(
-    item?.lowStockLimit ??
-    item?.LowStockLimit ??
-    item?.minimumStock ??
-    item?.MinimumStock ??
-    item?.reorderLevel ??
-    item?.ReorderLevel ??
-    5
-  );
-};
-
-
-// =====================================================
-// STOCK STATUS
-// =====================================================
-
-const getStockStatus = (
-  item
-) => {
-
-  const stock =
-    getCurrentStock(item);
-
-  const lowStockLimit =
-    getLowStockLimit(item);
-
-
-  if (stock <= 0) {
-    return "out";
+  if (imageValue.startsWith("uploads/")) {
+    return `${SERVER_URL}/${imageValue}`;
   }
 
+  // -----------------------------------------------
+  // /products/...
+  // -----------------------------------------------
 
-  if (
-    stock <=
-    lowStockLimit
-  ) {
-
-    return "low";
+  if (imageValue.startsWith("/products/")) {
+    return `${SERVER_URL}/uploads${imageValue}`;
   }
 
+  // -----------------------------------------------
+  // products/...
+  // -----------------------------------------------
 
-  return "available";
+  if (imageValue.startsWith("products/")) {
+    return `${SERVER_URL}/uploads/${imageValue}`;
+  }
+
+  // -----------------------------------------------
+  // FILENAME ONLY
+  // -----------------------------------------------
+
+  if (!imageValue.startsWith("/") && !imageValue.includes("://")) {
+    return `${SERVER_URL}/uploads/${imageValue}`;
+  }
+
+  return imageValue;
 };
 
-
 // =====================================================
-// COMPONENT
+// INVENTORY PAGE
 // =====================================================
 
 const Inventory = () => {
-
   // ===================================================
   // STATE
   // ===================================================
 
-  const [
-    inventory,
-    setInventory,
-  ] = useState([]);
+  const [inventory, setInventory] = useState([]);
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
+  const [loading, setLoading] = useState(true);
 
-  const [
-    refreshing,
-    setRefreshing,
-  ] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [
-    saving,
-    setSaving,
-  ] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const [
-    error,
-    setError,
-  ] = useState("");
+  const [error, setError] = useState("");
 
-  const [
-    success,
-    setSuccess,
-  ] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const [
-    search,
-    setSearch,
-  ] = useState("");
+  const [search, setSearch] = useState("");
 
-  const [
-    statusFilter,
-    setStatusFilter,
-  ] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
+
+  const [selectedItem, setSelectedItem] = useState(null);
 
   // ===================================================
-  // PURCHASE MODAL
+  // PURCHASE FORM
   // ===================================================
 
-  const [
-    showPurchaseModal,
-    setShowPurchaseModal,
-  ] = useState(false);
-
-
-  const [
-    purchaseForm,
-    setPurchaseForm,
-  ] = useState({
-    productId: "",
+  const [purchaseForm, setPurchaseForm] = useState({
+    product_id: "",
     quantity: "",
-    shop: "",
-    purchasePrice: "",
+    purchase_price: "",
+    purchase_date: "",
     notes: "",
   });
 
-
   // ===================================================
-  // ADJUST MODAL
+  // ADJUSTMENT FORM
   // ===================================================
 
-  const [
-    showAdjustModal,
-    setShowAdjustModal,
-  ] = useState(false);
-
-
-  const [
-    selectedProduct,
-    setSelectedProduct,
-  ] = useState(null);
-
-
-  const [
-    adjustForm,
-    setAdjustForm,
-  ] = useState({
+  const [adjustForm, setAdjustForm] = useState({
     quantity: "",
-    type: "add",
-    reason: "",
+    notes: "",
   });
 
+  // ===================================================
+  // TOKEN
+  // ===================================================
+
+  const getToken = () => {
+    return (
+      localStorage.getItem("token") ||
+      localStorage.getItem("authToken") ||
+      localStorage.getItem("accessToken") ||
+      ""
+    );
+  };
 
   // ===================================================
-  // LOAD INVENTORY
+  // HEADERS
   // ===================================================
 
-  const loadInventory = useCallback(
-    async (
-      showLoader = true
-    ) => {
+  const getHeaders = (json = false) => {
+    const token = getToken();
 
-      try {
+    return {
+      ...(json
+        ? {
+            "Content-Type": "application/json",
+          }
+        : {}),
 
-        if (showLoader) {
-          setLoading(true);
-        } else {
-          setRefreshing(true);
-        }
+      ...(token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : {}),
+    };
+  };
 
+  // ===================================================
+  // API RESPONSE
+  // ===================================================
 
-        setError("");
+  const getErrorMessage = (result, fallback) => {
+    return result?.message || result?.error || fallback;
+  };
 
+  // ===================================================
+  // NORMALIZE INVENTORY
+  // ===================================================
 
-        const response =
-          await getInventory();
+  const normalizeInventoryItem = (item) => {
+    const rawImage =
+      item.product_image ??
+      item.productImage ??
+      item.ImageURL ??
+      item.imageURL ??
+      item.imageUrl ??
+      item.image ??
+      item.ProductImage ??
+      "";
 
+    const productImage = getImageUrl(rawImage);
 
-        console.log(
-          "Inventory API:",
-          response
-        );
+    return {
+      ...item,
 
+      id: item.id ?? item.inventory_id ?? item.InventoryID ?? null,
 
-        const records =
-          Array.isArray(
-            response?.inventory
-          )
-            ? response.inventory
-            : Array.isArray(
-                response?.data
-              )
-              ? response.data
-              : Array.isArray(
-                  response
-                )
-                ? response
-                : [];
+      productId: item.product_id ?? item.productId ?? item.ProductID ?? null,
 
+      productType:
+        item.product_type ?? item.productType ?? item.ProductType ?? "-",
 
-        console.log(
-          "Inventory Records:",
-          records
-        );
+      productName:
+        item.product_name ??
+        item.productName ??
+        item.ProductName ??
+        "Unknown Product",
 
+      // IMPORTANT
+      // Store browser-ready image URL
+      productImage,
 
-        setInventory(
-          records
-        );
+      shopLocation:
+        item.shop_location ?? item.shopLocation ?? item.ShopLocation ?? "-",
 
-      } catch (err) {
+      purchasedQuantity: Number(
+        item.purchased_quantity ??
+          item.purchasedQuantity ??
+          item.PurchasedQuantity ??
+          0,
+      ),
 
-        console.error(
-          "Inventory Fetch Error:",
-          err
-        );
+      soldQuantity: Number(
+        item.sold_quantity ?? item.soldQuantity ?? item.SoldQuantity ?? 0,
+      ),
 
+      currentStock: Number(
+        item.current_stock ?? item.currentStock ?? item.CurrentStock ?? 0,
+      ),
 
-        setError(
-          err?.message ||
-          "Failed to load inventory"
-        );
+      lowStockLimit: Number(
+        item.low_stock_limit ??
+          item.lowStockLimit ??
+          item.minimum_stock ??
+          item.minimumStock ??
+          item.MinimumStock ??
+          0,
+      ),
 
-        setInventory([]);
+      isLowStock: Boolean(item.is_low_stock) || Boolean(item.isLowStock),
 
-      } finally {
+      updatedAt: item.updated_at ?? item.updatedAt ?? null,
+    };
+  };
 
-        setLoading(false);
-        setRefreshing(false);
-      }
+  // ===================================================
+  // FETCH INVENTORY
+  // ===================================================
 
-    },
-    []
-  );
+  const fetchInventory = async () => {
+    const result = await getInventory();
 
+    const records = Array.isArray(result?.inventory)
+      ? result.inventory
+      : Array.isArray(result?.data)
+        ? result.data
+        : Array.isArray(result)
+          ? result
+          : [];
+
+    console.log("Inventory API:", result);
+
+    console.log("Inventory Records:", records);
+
+    setInventory(records.map(normalizeInventoryItem));
+  };
 
   // ===================================================
   // INITIAL LOAD
   // ===================================================
 
   useEffect(() => {
+    const loadInventory = async () => {
+      try {
+        setLoading(true);
+        setError("");
 
-    loadInventory();
+        await fetchInventory();
+      } catch (err) {
+        console.error("Inventory Fetch Error:", err);
 
-  }, [
-    loadInventory,
-  ]);
-
-
-  // ===================================================
-  // FILTERED INVENTORY
-  // ===================================================
-
-  const filteredInventory =
-    useMemo(() => {
-
-      const searchText =
-        search
-          .trim()
-          .toLowerCase();
-
-
-      return inventory.filter(
-        (item) => {
-
-          const productName =
-            getProductName(
-              item
-            )
-              .toLowerCase();
-
-          const productType =
-            String(
-              getProductType(
-                item
-              )
-            )
-              .toLowerCase();
-
-          const shop =
-            String(
-              getShop(item)
-            )
-              .toLowerCase();
-
-          const productId =
-            String(
-              getProductId(
-                item
-              )
-            )
-              .toLowerCase();
-
-
-          const matchesSearch =
-            !searchText ||
-            productName.includes(
-              searchText
-            ) ||
-            productType.includes(
-              searchText
-            ) ||
-            shop.includes(
-              searchText
-            ) ||
-            productId.includes(
-              searchText
-            );
-
-
-          const status =
-            getStockStatus(
-              item
-            );
-
-
-          const matchesStatus =
-            statusFilter ===
-              "all" ||
-            (
-              statusFilter ===
-                "low" &&
-              status ===
-                "low"
-            ) ||
-            (
-              statusFilter ===
-                "out" &&
-              status ===
-                "out"
-            ) ||
-            (
-              statusFilter ===
-                "available" &&
-              status ===
-                "available"
-            );
-
-
-          return (
-            matchesSearch &&
-            matchesStatus
-          );
-        }
-      );
-
-    }, [
-      inventory,
-      search,
-      statusFilter,
-    ]);
-
-
-  // ===================================================
-  // SUMMARY
-  // ===================================================
-
-  const summary =
-    useMemo(() => {
-
-      let currentStock = 0;
-      let purchased = 0;
-      let sold = 0;
-      let lowStock = 0;
-      let outOfStock = 0;
-
-
-      inventory.forEach(
-        (item) => {
-
-          const stock =
-            getCurrentStock(
-              item
-            );
-
-          currentStock +=
-            stock;
-
-          purchased +=
-            getPurchased(
-              item
-            );
-
-          sold +=
-            getSold(
-              item
-            );
-
-
-          const status =
-            getStockStatus(
-              item
-            );
-
-
-          if (
-            status ===
-            "low"
-          ) {
-
-            lowStock++;
-
-          }
-
-
-          if (
-            status ===
-            "out"
-          ) {
-
-            outOfStock++;
-          }
-
-        }
-      );
-
-
-      return {
-        products:
-          inventory.length,
-
-        currentStock,
-
-        purchased,
-
-        sold,
-
-        lowStock,
-
-        outOfStock,
-      };
-
-    }, [
-      inventory,
-    ]);
-
-
-  // ===================================================
-  // CLEAR MESSAGES
-  // ===================================================
-
-  const clearMessages =
-    () => {
-
-      setError("");
-      setSuccess("");
-
+        setError(err.message || "Unable to load inventory.");
+      } finally {
+        setLoading(false);
+      }
     };
 
+    loadInventory();
+  }, []);
 
   // ===================================================
   // REFRESH
   // ===================================================
 
-  const handleRefresh =
-    async () => {
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
+      setError("");
+      setSuccess("");
 
-      clearMessages();
+      await fetchInventory();
 
-      await loadInventory(
-        false
-      );
+      setSuccess("Inventory refreshed successfully.");
+    } catch (err) {
+      console.error("Inventory Refresh Error:", err);
 
+      setError(err.message || "Unable to refresh inventory.");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // ===================================================
+  // SEARCH + FILTER
+  // ===================================================
+
+  const filteredInventory = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return inventory.filter((item) => {
+      const matchesSearch =
+        !query ||
+        [
+          item.productName,
+          item.productType,
+          item.shopLocation,
+          item.productId,
+        ].some((value) =>
+          String(value ?? "")
+            .toLowerCase()
+            .includes(query),
+        );
+
+      let matchesStatus = true;
+
+      if (statusFilter === "low") {
+        matchesStatus = item.currentStock <= item.lowStockLimit;
+      }
+
+      if (statusFilter === "out") {
+        matchesStatus = item.currentStock <= 0;
+      }
+
+      if (statusFilter === "available") {
+        matchesStatus = item.currentStock > item.lowStockLimit;
+      }
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [inventory, search, statusFilter]);
+
+  // ===================================================
+  // SUMMARY
+  // ===================================================
+
+  const summary = useMemo(() => {
+    const totalProducts = inventory.length;
+
+    const totalStock = inventory.reduce(
+      (total, item) => total + Number(item.currentStock || 0),
+      0,
+    );
+
+    const totalPurchased = inventory.reduce(
+      (total, item) => total + Number(item.purchasedQuantity || 0),
+      0,
+    );
+
+    const totalSold = inventory.reduce(
+      (total, item) => total + Number(item.soldQuantity || 0),
+      0,
+    );
+
+    const lowStock = inventory.filter(
+      (item) => item.currentStock <= item.lowStockLimit,
+    ).length;
+
+    const outOfStock = inventory.filter(
+      (item) => item.currentStock <= 0,
+    ).length;
+
+    return {
+      totalProducts,
+      totalStock,
+      totalPurchased,
+      totalSold,
+      lowStock,
+      outOfStock,
     };
-
+  }, [inventory]);
 
   // ===================================================
-  // PURCHASE FORM CHANGE
+  // STOCK STATUS
   // ===================================================
 
-  const handlePurchaseChange =
-    (event) => {
+  const getStockStatus = (item) => {
+    if (item.currentStock <= 0) {
+      return {
+        label: "Out of Stock",
+        className: "out",
+      };
+    }
 
-      const {
-        name,
-        value,
-      } = event.target;
+    if (item.currentStock <= item.lowStockLimit) {
+      return {
+        label: "Low Stock",
+        className: "low",
+      };
+    }
 
-
-      setPurchaseForm(
-        (previous) => ({
-          ...previous,
-          [name]: value,
-        })
-      );
-
+    return {
+      label: "In Stock",
+      className: "good",
     };
-
+  };
 
   // ===================================================
-  // ADJUST FORM CHANGE
+  // FORMAT DATE
   // ===================================================
 
-  const handleAdjustChange =
-    (event) => {
+  const formatDate = (date) => {
+    if (!date) {
+      return "-";
+    }
 
-      const {
-        name,
-        value,
-      } = event.target;
+    const parsed = new Date(date);
 
+    if (Number.isNaN(parsed.getTime())) {
+      return "-";
+    }
 
-      setAdjustForm(
-        (previous) => ({
-          ...previous,
-          [name]: value,
-        })
-      );
+    return parsed.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
 
-    };
+  // ===================================================
+  // FORMAT CURRENCY
+  // ===================================================
 
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 2,
+    }).format(Number(value || 0));
+  };
 
   // ===================================================
   // OPEN PURCHASE MODAL
   // ===================================================
 
-  const openPurchaseModal =
-    () => {
+  const openPurchaseModal = () => {
+    setError("");
+    setSuccess("");
 
-      clearMessages();
+    setSelectedItem(null);
+
+    setPurchaseForm({
+      product_id: "",
+      quantity: "",
+      purchase_price: "",
+      purchase_date: "",
+      notes: "",
+    });
+
+    setShowPurchaseModal(true);
+  };
+
+  // ===================================================
+  // OPEN PURCHASE FOR PRODUCT
+  // ===================================================
+
+  const openPurchaseForProduct = (item) => {
+    setError("");
+    setSuccess("");
+
+    setSelectedItem(item);
+
+    setPurchaseForm({
+      product_id: item.productId ? String(item.productId) : "",
+
+      quantity: "",
+
+      purchase_price: "",
+
+      purchase_date: "",
+
+      notes: "",
+    });
+
+    setShowPurchaseModal(true);
+  };
+
+  // ===================================================
+  // CLOSE PURCHASE
+  // ===================================================
+
+  const closePurchaseModal = () => {
+    if (saving) {
+      return;
+    }
+
+    setShowPurchaseModal(false);
+
+    setSelectedItem(null);
+  };
+
+  // ===================================================
+  // PURCHASE CHANGE
+  // ===================================================
+
+  const handlePurchaseChange = (event) => {
+    const { name, value } = event.target;
+
+    setPurchaseForm((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+  };
+
+  // ===================================================
+  // PURCHASE SUBMIT
+  // ===================================================
+
+  const handlePurchaseSubmit = async (event) => {
+    event.preventDefault();
+
+    setError("");
+    setSuccess("");
+
+    const productId = Number(purchaseForm.product_id);
+
+    const quantity = Number(purchaseForm.quantity);
+
+    const purchasePrice =
+      purchaseForm.purchase_price === ""
+        ? 0
+        : Number(purchaseForm.purchase_price);
+
+    if (!Number.isInteger(productId) || productId <= 0) {
+      setError("Please select a valid product.");
+
+      return;
+    }
+
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      setError("Purchase quantity must be greater than 0.");
+
+      return;
+    }
+
+    if (Number.isNaN(purchasePrice) || purchasePrice < 0) {
+      setError("Please enter a valid purchase price.");
+
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const payload = {
+        product_id: productId,
+
+        quantity,
+
+        purchase_price: purchasePrice,
+
+        purchase_date: purchaseForm.purchase_date || null,
+
+        notes: purchaseForm.notes.trim() || null,
+      };
+
+      const result = await addPurchase(payload);
+
+      setShowPurchaseModal(false);
+
+      setSuccess(result?.message || "Stock added successfully.");
 
       setPurchaseForm({
-        productId:
-          inventory.length
-            ? String(
-                getProductId(
-                  inventory[0]
-                )
-              )
-            : "",
-
+        product_id: "",
         quantity: "",
-
-        shop: "",
-
-        purchasePrice: "",
-
+        purchase_price: "",
+        purchase_date: "",
         notes: "",
       });
 
+      setSelectedItem(null);
 
-      setShowPurchaseModal(
-        true
+      await fetchInventory();
+    } catch (err) {
+      console.error("Purchase Error:", err);
+
+      setError(err.message || "Unable to add stock.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ===================================================
+  // OPEN ADJUSTMENT
+  // ===================================================
+
+  const openAdjustModal = (item) => {
+    setSelectedItem(item);
+
+    setAdjustForm({
+      quantity: "",
+      notes: "",
+    });
+
+    setError("");
+    setSuccess("");
+
+    setShowAdjustModal(true);
+  };
+
+  // ===================================================
+  // CLOSE ADJUSTMENT
+  // ===================================================
+
+  const closeAdjustModal = () => {
+    if (saving) {
+      return;
+    }
+
+    setShowAdjustModal(false);
+
+    setSelectedItem(null);
+
+    setAdjustForm({
+      quantity: "",
+      notes: "",
+    });
+  };
+
+  // ===================================================
+  // ADJUSTMENT CHANGE
+  // ===================================================
+
+  const handleAdjustChange = (event) => {
+    const { name, value } = event.target;
+
+    setAdjustForm((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+  };
+
+  // ===================================================
+  // STOCK ADJUSTMENT
+  // ===================================================
+
+  const handleAdjustSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!selectedItem) {
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+
+    const adjustment = Number(adjustForm.quantity);
+
+    if (!Number.isInteger(adjustment) || adjustment === 0) {
+      setError("Adjustment must be a non-zero whole number.");
+
+      return;
+    }
+
+    const newStock = selectedItem.currentStock + adjustment;
+
+    if (newStock < 0) {
+      setError(
+        `Stock cannot become negative. Current stock is ${selectedItem.currentStock}.`,
       );
 
-    };
+      return;
+    }
 
+    try {
+      setSaving(true);
 
-  // ===================================================
-  // CLOSE PURCHASE MODAL
-  // ===================================================
-
-  const closePurchaseModal =
-    () => {
-
-      if (saving) {
-        return;
-      }
-
-
-      setShowPurchaseModal(
-        false
+      const result = await adjustStock(
+        selectedItem.productId,
+        {
+          quantity: adjustment,
+          notes: adjustForm.notes.trim() || null,
+        },
       );
 
-    };
+      setShowAdjustModal(false);
 
+      setSuccess(result?.message || "Stock adjusted successfully.");
 
-  // ===================================================
-  // OPEN ADJUST MODAL
-  // ===================================================
-
-  const openAdjustModal =
-    (item) => {
-
-      clearMessages();
-
-
-      setSelectedProduct(
-        item
-      );
-
+      setSelectedItem(null);
 
       setAdjustForm({
         quantity: "",
-
-        type: "add",
-
-        reason: "",
+        notes: "",
       });
 
+      await fetchInventory();
+    } catch (err) {
+      console.error("Stock Adjustment Error:", err);
 
-      setShowAdjustModal(
-        true
-      );
-
-    };
-
-
-  // ===================================================
-  // CLOSE ADJUST MODAL
-  // ===================================================
-
-  const closeAdjustModal =
-    () => {
-
-      if (saving) {
-        return;
-      }
-
-
-      setShowAdjustModal(
-        false
-      );
-
-      setSelectedProduct(
-        null
-      );
-
-    };
-
+      setError(err.message || "Unable to adjust stock.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // ===================================================
-  // ADD PURCHASE
+  // IMAGE ERROR HANDLER
   // ===================================================
 
-  const handlePurchaseSubmit =
-    async (event) => {
+  const handleImageError = (event) => {
+    console.error("Inventory product image failed:", event.currentTarget.src);
 
-      event.preventDefault();
+    event.currentTarget.style.display = "none";
 
-
-      clearMessages();
-
-
-      const productId =
-        purchaseForm.productId;
-
-      const quantity =
-        Number(
-          purchaseForm.quantity
-        );
-
-
-      if (!productId) {
-
-        setError(
-          "Please select a product."
-        );
-
-        return;
-      }
-
-
-      if (
-        !Number.isFinite(
-          quantity
-        ) ||
-        quantity <= 0
-      ) {
-
-        setError(
-          "Please enter a valid purchase quantity."
-        );
-
-        return;
-      }
-
-
-      try {
-
-        setSaving(true);
-
-
-        const payload = {
-          productId:
-            Number(
-              productId
-            ),
-
-          quantity,
-
-          shop:
-            purchaseForm.shop
-              .trim(),
-
-          purchasePrice:
-            purchaseForm.purchasePrice
-              ? Number(
-                  purchaseForm.purchasePrice
-                )
-              : 0,
-
-          notes:
-            purchaseForm.notes
-              .trim(),
-        };
-
-
-        console.log(
-          "Purchase Payload:",
-          payload
-        );
-
-
-        await addPurchase(
-          payload
-        );
-
-
-        setSuccess(
-          "Purchase added successfully."
-        );
-
-
-        setShowPurchaseModal(
-          false
-        );
-
-
-        setPurchaseForm({
-          productId: "",
-
-          quantity: "",
-
-          shop: "",
-
-          purchasePrice: "",
-
-          notes: "",
-        });
-
-
-        await loadInventory(
-          false
-        );
-
-      } catch (err) {
-
-        console.error(
-          "Add Purchase Error:",
-          err
-        );
-
-
-        setError(
-          err?.message ||
-          "Failed to add purchase."
-        );
-
-      } finally {
-
-        setSaving(false);
-      }
-
-    };
-
-
-  // ===================================================
-  // ADJUST STOCK
-  // ===================================================
-
-  const handleAdjustSubmit =
-    async (event) => {
-
-      event.preventDefault();
-
-
-      clearMessages();
-
-
-      if (!selectedProduct) {
-
-        setError(
-          "No product selected."
-        );
-
-        return;
-      }
-
-
-      const productId =
-        getProductId(
-          selectedProduct
-        );
-
-
-      const quantity =
-        Number(
-          adjustForm.quantity
-        );
-
-
-      if (!productId) {
-
-        setError(
-          "Product ID is missing."
-        );
-
-        return;
-      }
-
-
-      if (
-        !Number.isFinite(
-          quantity
-        ) ||
-        quantity <= 0
-      ) {
-
-        setError(
-          "Please enter a valid quantity."
-        );
-
-        return;
-      }
-
-
-      try {
-
-        setSaving(true);
-
-
-        const payload = {
-
-          quantity,
-
-          type:
-            adjustForm.type,
-
-          reason:
-            adjustForm.reason
-              .trim(),
-
-        };
-
-
-        console.log(
-          "Adjust Stock Payload:",
-          payload
-        );
-
-
-        await adjustStock(
-          productId,
-          payload
-        );
-
-
-        setSuccess(
-          "Stock adjusted successfully."
-        );
-
-
-        setShowAdjustModal(
-          false
-        );
-
-
-        setSelectedProduct(
-          null
-        );
-
-
-        await loadInventory(
-          false
-        );
-
-      } catch (err) {
-
-        console.error(
-          "Adjust Stock Error:",
-          err
-        );
-
-
-        setError(
-          err?.message ||
-          "Failed to adjust stock."
-        );
-
-      } finally {
-
-        setSaving(false);
-      }
-
-    };
-
-
-  // ===================================================
-  // LOADING
-  // ===================================================
-
-  if (loading) {
-
-    return (
-      <div className="inventory-page">
-
-        <div className="inventory-loading">
-
-          <div className="inventory-spinner">
-            ↻
-          </div>
-
-          <p>
-            Loading inventory...
-          </p>
-
-        </div>
-
-      </div>
+    const fallback = event.currentTarget.parentElement?.querySelector(
+      ".product-image-fallback",
     );
 
-  }
-
+    if (fallback) {
+      fallback.style.display = "flex";
+    }
+  };
 
   // ===================================================
   // RENDER
@@ -1243,1371 +788,763 @@ const Inventory = () => {
 
   return (
     <div className="inventory-page">
-
       {/* =================================================
           HEADER
-      ================================================= */}
+          ================================================= */}
 
-      <div className="inventory-page-header">
-
+      <div className="inventory-header">
         <div>
+          <h1>Inventory</h1>
 
-          <h1>
-            Inventory
-          </h1>
-
-          <p>
-            Manage and monitor your product stock.
-          </p>
-
+          <p>Monitor stock, purchases and inventory movements.</p>
         </div>
 
-
         <div className="inventory-header-actions">
-
           <button
             type="button"
             className="inventory-refresh-btn"
-            onClick={
-              handleRefresh
-            }
-            disabled={
-              refreshing
-            }
+            onClick={handleRefresh}
+            disabled={refreshing}
           >
+            <span>{refreshing ? "↻" : "⟳"}</span>
 
-            <span>
-              {refreshing
-                ? "↻"
-                : "⟳"}
-            </span>
-
-            {refreshing
-              ? "Refreshing..."
-              : "Refresh"}
-
+            {refreshing ? "Refreshing..." : "Refresh"}
           </button>
-
 
           <button
             type="button"
-            className="inventory-primary-btn"
-            onClick={
-              openPurchaseModal
-            }
+            className="inventory-purchase-btn"
+            onClick={openPurchaseModal}
           >
-
-            <span>
-              +
-            </span>
-
+            <span>+</span>
             Add Purchase
-
           </button>
-
         </div>
-
       </div>
 
-
       {/* =================================================
-          MESSAGES
-      ================================================= */}
+          ALERTS
+          ================================================= */}
 
       {error && (
+        <div className="inventory-alert error">
+          <span className="alert-icon">!</span>
 
-        <div className="inventory-alert inventory-alert-error">
+          <p>{error}</p>
 
-          <span>
-            !
-          </span>
-
-          <div>
-            {error}
-          </div>
-
-          <button
-            type="button"
-            onClick={() =>
-              setError("")
-            }
-          >
+          <button type="button" onClick={() => setError("")}>
             ×
           </button>
-
         </div>
-
       )}
-
 
       {success && (
+        <div className="inventory-alert success">
+          <span className="alert-icon">✓</span>
 
-        <div className="inventory-alert inventory-alert-success">
+          <p>{success}</p>
 
-          <span>
-            ✓
-          </span>
-
-          <div>
-            {success}
-          </div>
-
-          <button
-            type="button"
-            onClick={() =>
-              setSuccess("")
-            }
-          >
+          <button type="button" onClick={() => setSuccess("")}>
             ×
           </button>
-
         </div>
-
       )}
 
-
       {/* =================================================
-          SUMMARY CARDS
-      ================================================= */}
+          SUMMARY
+          ================================================= */}
 
-      <div className="inventory-summary-grid">
+      <div className="inventory-summary">
+        <div className="inventory-summary-card">
+          <div className="summary-icon">▤</div>
 
+          <div>
+            <span>Products</span>
+
+            <strong>{summary.totalProducts}</strong>
+          </div>
+        </div>
 
         <div className="inventory-summary-card">
-
-          <div className="inventory-summary-icon">
-            ▤
-          </div>
+          <div className="summary-icon">#</div>
 
           <div>
+            <span>Current Stock</span>
 
-            <span>
-              Products
-            </span>
-
-            <strong>
-              {summary.products}
-            </strong>
-
+            <strong>{summary.totalStock}</strong>
           </div>
-
         </div>
-
 
         <div className="inventory-summary-card">
-
-          <div className="inventory-summary-icon">
-            #
-          </div>
+          <div className="summary-icon">+</div>
 
           <div>
+            <span>Purchased</span>
 
-            <span>
-              Current Stock
-            </span>
-
-            <strong>
-              {summary.currentStock}
-            </strong>
-
+            <strong>{summary.totalPurchased}</strong>
           </div>
-
         </div>
-
 
         <div className="inventory-summary-card">
-
-          <div className="inventory-summary-icon">
-            +
-          </div>
+          <div className="summary-icon">−</div>
 
           <div>
+            <span>Sold</span>
 
-            <span>
-              Purchased
-            </span>
-
-            <strong>
-              {summary.purchased}
-            </strong>
-
+            <strong>{summary.totalSold}</strong>
           </div>
-
         </div>
 
-
-        <div className="inventory-summary-card">
-
-          <div className="inventory-summary-icon">
-            −
-          </div>
+        <div className="inventory-summary-card warning-card">
+          <div className="summary-icon">!</div>
 
           <div>
+            <span>Low Stock</span>
 
-            <span>
-              Sold
-            </span>
-
-            <strong>
-              {summary.sold}
-            </strong>
-
+            <strong>{summary.lowStock}</strong>
           </div>
-
         </div>
 
-
-        <div className="inventory-summary-card inventory-summary-warning">
-
-          <div className="inventory-summary-icon">
-            !
-          </div>
+        <div className="inventory-summary-card danger-card">
+          <div className="summary-icon">0</div>
 
           <div>
+            <span>Out of Stock</span>
 
-            <span>
-              Low Stock
-            </span>
-
-            <strong>
-              {summary.lowStock}
-            </strong>
-
+            <strong>{summary.outOfStock}</strong>
           </div>
-
         </div>
-
-
-        <div className="inventory-summary-card inventory-summary-danger">
-
-          <div className="inventory-summary-icon">
-            0
-          </div>
-
-          <div>
-
-            <span>
-              Out of Stock
-            </span>
-
-            <strong>
-              {summary.outOfStock}
-            </strong>
-
-          </div>
-
-        </div>
-
       </div>
 
-
       {/* =================================================
-          INVENTORY CARD
-      ================================================= */}
+          MAIN CARD
+          ================================================= */}
 
       <div className="inventory-card">
-
+        {/* CARD HEADER */}
 
         <div className="inventory-card-header">
-
           <div>
+            <h2>Inventory Items</h2>
 
-            <h2>
-              Inventory Items
-            </h2>
-
-            <p>
-              Current inventory records from your database.
-            </p>
-
+            <p>Current inventory records from your database.</p>
           </div>
 
-
-          <div className="inventory-record-count">
-
-            {filteredInventory.length}
-            {" "}
-            Records
-
-          </div>
-
+          <span className="inventory-record-count">
+            {filteredInventory.length} Records
+          </span>
         </div>
 
-
         {/* =================================================
-            SEARCH / FILTER
-        ================================================= */}
+            TOOLBAR
+            ================================================= */}
 
         <div className="inventory-toolbar">
-
           <div className="inventory-search">
-
-            <span>
-              ⌕
-            </span>
+            <span>⌕</span>
 
             <input
               type="text"
               value={search}
-              onChange={(event) =>
-                setSearch(
-                  event.target.value
-                )
-              }
+              onChange={(event) => setSearch(event.target.value)}
               placeholder="Search product, type or shop..."
             />
 
+            {search && (
+              <button type="button" onClick={() => setSearch("")}>
+                ×
+              </button>
+            )}
           </div>
-
 
           <select
-            value={
-              statusFilter
-            }
-            onChange={(event) =>
-              setStatusFilter(
-                event.target.value
-              )
-            }
             className="inventory-filter"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
           >
+            <option value="all">All Stock</option>
 
-            <option value="all">
-              All Stock
-            </option>
+            <option value="available">In Stock</option>
 
-            <option value="available">
-              Available
-            </option>
+            <option value="low">Low Stock</option>
 
-            <option value="low">
-              Low Stock
-            </option>
-
-            <option value="out">
-              Out of Stock
-            </option>
-
+            <option value="out">Out of Stock</option>
           </select>
 
-
-          <div className="inventory-showing">
-
-            Showing{" "}
-
-            {filteredInventory.length}
-
-            {" "}of{" "}
-
-            {inventory.length}
-
-          </div>
-
+          <span className="inventory-showing">
+            Showing {filteredInventory.length} of {inventory.length}
+          </span>
         </div>
 
-
         {/* =================================================
-            DESKTOP TABLE
-        ================================================= */}
+            LOADING / EMPTY / DATA
+            ================================================= */}
 
-        <div className="inventory-table-wrapper">
+        {loading ? (
+          <div className="inventory-loading">
+            <div className="inventory-spinner"></div>
 
-          <table className="inventory-table">
+            <p>Loading inventory...</p>
+          </div>
+        ) : filteredInventory.length === 0 ? (
+          <div className="inventory-empty">
+            <div className="empty-icon">▤</div>
 
-            <thead>
+            <h3>
+              {search || statusFilter !== "all"
+                ? "No inventory found"
+                : "No inventory records"}
+            </h3>
 
-              <tr>
+            <p>
+              {search || statusFilter !== "all"
+                ? "Try changing your search or filter."
+                : "Inventory records will appear after products are added."}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* =================================================
+                DESKTOP TABLE
+                ================================================= */}
 
-                <th>
-                  PRODUCT
-                </th>
+            <div className="inventory-table-wrapper">
+              <table className="inventory-table">
+                <thead>
+                  <tr>
+                    <th>Product</th>
 
-                <th>
-                  TYPE
-                </th>
+                    <th>Type</th>
 
-                <th>
-                  SHOP
-                </th>
+                    <th>Shop</th>
 
-                <th>
-                  PURCHASED
-                </th>
+                    <th>Purchased</th>
 
-                <th>
-                  SOLD
-                </th>
+                    <th>Sold</th>
 
-                <th>
-                  STOCK
-                </th>
+                    <th>Current Stock</th>
 
-                <th>
-                  STATUS
-                </th>
+                    <th>Min Stock</th>
 
-                <th>
-                  ACTION
-                </th>
+                    <th>Status</th>
 
-              </tr>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
 
-            </thead>
-
-
-            <tbody>
-
-              {filteredInventory.length ===
-                0 ? (
-
-                <tr>
-
-                  <td
-                    colSpan="8"
-                    className="inventory-empty-cell"
-                  >
-
-                    <div className="inventory-empty">
-
-                      <div className="inventory-empty-icon">
-                        ▤
-                      </div>
-
-                      <h3>
-                        No inventory records
-                      </h3>
-
-                      <p>
-                        No inventory items match your current search or filter.
-                      </p>
-
-                    </div>
-
-                  </td>
-
-                </tr>
-
-              ) : (
-
-                filteredInventory.map(
-                  (
-                    item,
-                    index
-                  ) => {
-
-                    const id =
-                      getProductId(
-                        item
-                      );
-
-                    const name =
-                      getProductName(
-                        item
-                      );
-
-                    const type =
-                      getProductType(
-                        item
-                      );
-
-                    const shop =
-                      getShop(
-                        item
-                      );
-
-                    const purchased =
-                      getPurchased(
-                        item
-                      );
-
-                    const sold =
-                      getSold(
-                        item
-                      );
-
-                    const stock =
-                      getCurrentStock(
-                        item
-                      );
-
-                    const status =
-                      getStockStatus(
-                        item
-                      );
-
-                    const image =
-                      getProductImage(
-                        item
-                      );
-
-                    const imageUrl =
-                      getProductImageUrl(
-                        image
-                      );
-
+                <tbody>
+                  {filteredInventory.map((item) => {
+                    const status = getStockStatus(item);
 
                     return (
-                      <tr
-                        key={
-                          `${id}-${index}`
-                        }
-                      >
+                      <tr key={item.id ?? item.productId}>
+                        {/* PRODUCT */}
 
                         <td>
-
-                          <div className="inventory-product-cell">
-
-                            <div className="inventory-product-image">
-
-                              {imageUrl ? (
-
+                          <div className="inventory-product">
+                            <div className="product-icon">
+                              {item.productImage ? (
                                 <img
-                                  src={
-                                    imageUrl
-                                  }
-                                  alt={
-                                    name
-                                  }
-                                  onError={(
-                                    event
-                                  ) => {
-
-                                    console.error(
-                                      "Inventory product image failed:",
-                                      event
-                                        .currentTarget
-                                        .src
-                                    );
-
-                                    event
-                                      .currentTarget
-                                      .style
-                                      .display =
-                                      "none";
-
-                                  }}
+                                  src={item.productImage}
+                                  alt={item.productName || "Product"}
+                                  loading="lazy"
+                                  onError={handleImageError}
                                 />
+                              ) : null}
 
-                              ) : (
-
-                                <div className="inventory-image-placeholder">
-                                  ▣
-                                </div>
-
-                              )}
-
+                              <span
+                                className="product-image-fallback"
+                                style={{
+                                  display: item.productImage ? "none" : "flex",
+                                }}
+                              >
+                                ▣
+                              </span>
                             </div>
-
 
                             <div>
+                              <strong>{item.productName}</strong>
 
-                              <strong>
-                                {name}
-                              </strong>
-
-                              <small>
-                                ID: {id || "-"}
-                              </small>
-
+                              <small>ID: {item.productId}</small>
                             </div>
-
                           </div>
-
                         </td>
 
+                        {/* TYPE */}
 
                         <td>
-                          {type}
-                        </td>
-
-
-                        <td>
-
-                          <span className="inventory-shop-badge">
-                            {shop}
+                          <span className="product-type">
+                            {item.productType}
                           </span>
-
                         </td>
 
+                        {/* SHOP */}
 
                         <td>
-                          {purchased}
+                          <span className="shop-location">
+                            {item.shopLocation}
+                          </span>
                         </td>
 
+                        {/* PURCHASED */}
 
                         <td>
-                          {sold}
-                        </td>
-
-
-                        <td>
-
-                          <strong
-                            className={
-                              stock <= 0
-                                ? "stock-danger"
-                                : stock <=
-                                    getLowStockLimit(
-                                      item
-                                    )
-                                  ? "stock-warning"
-                                  : ""
-                            }
-                          >
-                            {stock}
+                          <strong className="quantity-value">
+                            {item.purchasedQuantity}
                           </strong>
-
                         </td>
 
+                        {/* SOLD */}
 
                         <td>
+                          <strong className="quantity-value">
+                            {item.soldQuantity}
+                          </strong>
+                        </td>
 
-                          <span
-                            className={`inventory-status inventory-status-${status}`}
-                          >
+                        {/* CURRENT STOCK */}
 
-                            {status ===
-                              "out"
-                              ? "Out of Stock"
-                              : status ===
-                                  "low"
-                                ? "Low Stock"
-                                : "Available"}
+                        <td>
+                          <div className="current-stock">
+                            <strong>{item.currentStock}</strong>
 
+                            <div className="stock-progress">
+                              <span
+                                style={{
+                                  width: `${Math.min(
+                                    100,
+                                    Math.max(0, item.currentStock),
+                                  )}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* MIN */}
+
+                        <td>{item.lowStockLimit}</td>
+
+                        {/* STATUS */}
+
+                        <td>
+                          <span className={`stock-status ${status.className}`}>
+                            <span></span>
+
+                            {status.label}
                           </span>
-
                         </td>
 
+                        {/* ACTIONS */}
 
                         <td>
+                          <div className="inventory-actions">
+                            <button
+                              type="button"
+                              className="purchase-small-btn"
+                              onClick={() => openPurchaseForProduct(item)}
+                            >
+                              + Stock
+                            </button>
 
-                          <button
-                            type="button"
-                            className="inventory-adjust-btn"
-                            onClick={() =>
-                              openAdjustModal(
-                                item
-                              )
-                            }
-                          >
-                            Adjust
-                          </button>
-
+                            <button
+                              type="button"
+                              className="adjust-small-btn"
+                              onClick={() => openAdjustModal(item)}
+                            >
+                              Adjust
+                            </button>
+                          </div>
                         </td>
-
                       </tr>
                     );
-
-                  }
-                )
-
-              )}
-
-            </tbody>
-
-          </table>
-
-        </div>
-
-
-        {/* =================================================
-            MOBILE CARDS
-        ================================================= */}
-
-        <div className="inventory-mobile-list">
-
-          {filteredInventory.length ===
-          0 ? (
-
-            <div className="inventory-empty">
-
-              <div className="inventory-empty-icon">
-                ▤
-              </div>
-
-              <h3>
-                No inventory records
-              </h3>
-
-              <p>
-                No inventory items match your current search or filter.
-              </p>
-
+                  })}
+                </tbody>
+              </table>
             </div>
 
-          ) : (
+            {/* =================================================
+                MOBILE CARDS
+                ================================================= */}
 
-            filteredInventory.map(
-              (
-                item,
-                index
-              ) => {
-
-                const id =
-                  getProductId(
-                    item
-                  );
-
-                const name =
-                  getProductName(
-                    item
-                  );
-
-                const type =
-                  getProductType(
-                    item
-                  );
-
-                const shop =
-                  getShop(
-                    item
-                  );
-
-                const purchased =
-                  getPurchased(
-                    item
-                  );
-
-                const sold =
-                  getSold(
-                    item
-                  );
-
-                const stock =
-                  getCurrentStock(
-                    item
-                  );
-
-                const status =
-                  getStockStatus(
-                    item
-                  );
-
-                const image =
-                  getProductImage(
-                    item
-                  );
-
-                const imageUrl =
-                  getProductImageUrl(
-                    image
-                  );
-
+            <div className="inventory-mobile-list">
+              {filteredInventory.map((item) => {
+                const status = getStockStatus(item);
 
                 return (
                   <div
-                    className="inventory-mobile-item"
-                    key={
-                      `${id}-mobile-${index}`
-                    }
+                    className="inventory-mobile-card"
+                    key={item.id ?? item.productId}
                   >
+                    <div className="mobile-product-header">
+                      <div className="inventory-product">
+                        <div className="product-icon">
+                          {item.productImage ? (
+                            <img
+                              src={item.productImage}
+                              alt={item.productName || "Product"}
+                              loading="lazy"
+                              onError={handleImageError}
+                            />
+                          ) : null}
 
-                    <div className="inventory-mobile-product">
-
-                      <div className="inventory-product-image">
-
-                        {imageUrl ? (
-
-                          <img
-                            src={
-                              imageUrl
-                            }
-                            alt={
-                              name
-                            }
-                            onError={(
-                              event
-                            ) => {
-
-                              console.error(
-                                "Inventory product image failed:",
-                                event
-                                  .currentTarget
-                                  .src
-                              );
-
-                              event
-                                .currentTarget
-                                .style
-                                .display =
-                                "none";
-
+                          <span
+                            className="product-image-fallback"
+                            style={{
+                              display: item.productImage ? "none" : "flex",
                             }}
-                          />
-
-                        ) : (
-
-                          <div className="inventory-image-placeholder">
+                          >
                             ▣
-                          </div>
+                          </span>
+                        </div>
 
-                        )}
+                        <div>
+                          <strong>{item.productName}</strong>
 
+                          <small>ID: {item.productId}</small>
+                        </div>
                       </div>
 
+                      <span className={`stock-status ${status.className}`}>
+                        <span></span>
 
-                      <div>
-
-                        <strong>
-                          {name}
-                        </strong>
-
-                        <small>
-                          ID: {id || "-"}
-                        </small>
-
-                      </div>
-
+                        {status.label}
+                      </span>
                     </div>
 
-
-                    <div className="inventory-mobile-details">
-
+                    <div className="mobile-inventory-details">
                       <div>
-                        <span>
-                          Type
-                        </span>
+                        <span>Product Type</span>
 
-                        <strong>
-                          {type}
-                        </strong>
+                        <strong>{item.productType}</strong>
                       </div>
 
-
                       <div>
-                        <span>
-                          Shop
-                        </span>
+                        <span>Shop</span>
 
-                        <strong>
-                          {shop}
-                        </strong>
+                        <strong>{item.shopLocation}</strong>
                       </div>
 
-
                       <div>
-                        <span>
-                          Purchased
-                        </span>
+                        <span>Purchased</span>
 
-                        <strong>
-                          {purchased}
-                        </strong>
+                        <strong>{item.purchasedQuantity}</strong>
                       </div>
 
-
                       <div>
-                        <span>
-                          Sold
-                        </span>
+                        <span>Sold</span>
 
-                        <strong>
-                          {sold}
-                        </strong>
+                        <strong>{item.soldQuantity}</strong>
                       </div>
 
-
                       <div>
-                        <span>
-                          Current Stock
-                        </span>
+                        <span>Current Stock</span>
 
-                        <strong>
-                          {stock}
-                        </strong>
+                        <strong>{item.currentStock}</strong>
                       </div>
 
-
                       <div>
-                        <span>
-                          Status
-                        </span>
+                        <span>Minimum Stock</span>
 
-                        <span
-                          className={`inventory-status inventory-status-${status}`}
-                        >
-                          {status ===
-                            "out"
-                            ? "Out of Stock"
-                            : status ===
-                                "low"
-                              ? "Low Stock"
-                              : "Available"}
-                        </span>
+                        <strong>{item.lowStockLimit}</strong>
                       </div>
-
                     </div>
 
+                    <div className="mobile-inventory-actions">
+                      <button
+                        type="button"
+                        className="purchase-mobile-btn"
+                        onClick={() => openPurchaseForProduct(item)}
+                      >
+                        + Add Stock
+                      </button>
 
-                    <button
-                      type="button"
-                      className="inventory-adjust-btn inventory-mobile-adjust"
-                      onClick={() =>
-                        openAdjustModal(
-                          item
-                        )
-                      }
-                    >
-                      Adjust Stock
-                    </button>
-
+                      <button
+                        type="button"
+                        className="adjust-mobile-btn"
+                        onClick={() => openAdjustModal(item)}
+                      >
+                        Adjust Stock
+                      </button>
+                    </div>
                   </div>
                 );
-
-              }
-            )
-
-          )}
-
-        </div>
-
+              })}
+            </div>
+          </>
+        )}
       </div>
-
 
       {/* =================================================
           PURCHASE MODAL
-      ================================================= */}
+          ================================================= */}
 
       {showPurchaseModal && (
-
         <div
           className="inventory-modal-overlay"
           onMouseDown={(event) => {
-
-            if (
-              event.target ===
-              event.currentTarget
-            ) {
-
+            if (event.target === event.currentTarget) {
               closePurchaseModal();
-
             }
-
           }}
         >
-
           <div className="inventory-modal">
-
-            <div className="inventory-modal-header">
-
+            <div className="modal-header">
               <div>
+                <h2>Add Purchase</h2>
 
-                <h2>
-                  Add Purchase
-                </h2>
-
-                <p>
-                  Add new stock to inventory.
-                </p>
-
+                <p>Add purchased quantity to inventory.</p>
               </div>
-
 
               <button
                 type="button"
-                onClick={
-                  closePurchaseModal
-                }
-                disabled={
-                  saving
-                }
+                className="modal-close"
+                onClick={closePurchaseModal}
+                disabled={saving}
               >
                 ×
               </button>
-
             </div>
 
+            <form className="inventory-form" onSubmit={handlePurchaseSubmit}>
+              {/* PRODUCT */}
 
-            <form
-              onSubmit={
-                handlePurchaseSubmit
-              }
-            >
-
-              <div className="inventory-form-group">
-
+              <div className="form-group">
                 <label>
                   Product
+                  <span>*</span>
                 </label>
 
                 <select
-                  name="productId"
-                  value={
-                    purchaseForm.productId
-                  }
-                  onChange={
-                    handlePurchaseChange
-                  }
+                  name="product_id"
+                  value={purchaseForm.product_id}
+                  onChange={handlePurchaseChange}
                   required
                 >
+                  <option value="">Select product</option>
 
-                  <option value="">
-                    Select Product
-                  </option>
-
-                  {inventory.map(
-                    (
-                      item,
-                      index
-                    ) => {
-
-                      const id =
-                        getProductId(
-                          item
-                        );
-
-                      return (
-                        <option
-                          key={
-                            `${id}-${index}`
-                          }
-                          value={
-                            id
-                          }
-                        >
-                          {getProductName(
-                            item
-                          )}
-                        </option>
-                      );
-
-                    }
-                  )}
-
+                  {inventory.map((item) => (
+                    <option key={item.productId} value={item.productId}>
+                      {item.productName} — Stock: {item.currentStock}
+                    </option>
+                  ))}
                 </select>
-
               </div>
 
+              {/* SELECTED PRODUCT INFO */}
 
-              <div className="inventory-form-row">
+              {selectedItem && (
+                <div className="selected-product-box">
+                  <strong>{selectedItem.productName}</strong>
 
-                <div className="inventory-form-group">
+                  <span>Current Stock: {selectedItem.currentStock}</span>
 
-                  <label>
-                    Quantity
-                  </label>
-
-                  <input
-                    type="number"
-                    name="quantity"
-                    min="1"
-                    value={
-                      purchaseForm.quantity
-                    }
-                    onChange={
-                      handlePurchaseChange
-                    }
-                    placeholder="Enter quantity"
-                    required
-                  />
-
+                  <span>Shop: {selectedItem.shopLocation}</span>
                 </div>
+              )}
 
+              {/* QUANTITY */}
 
-                <div className="inventory-form-group">
-
-                  <label>
-                    Purchase Price
-                  </label>
-
-                  <input
-                    type="number"
-                    name="purchasePrice"
-                    min="0"
-                    step="0.01"
-                    value={
-                      purchaseForm.purchasePrice
-                    }
-                    onChange={
-                      handlePurchaseChange
-                    }
-                    placeholder="Optional"
-                  />
-
-                </div>
-
-              </div>
-
-
-              <div className="inventory-form-group">
-
+              <div className="form-group">
                 <label>
-                  Shop
+                  Purchase Quantity
+                  <span>*</span>
                 </label>
 
                 <input
-                  type="text"
-                  name="shop"
-                  value={
-                    purchaseForm.shop
-                  }
-                  onChange={
-                    handlePurchaseChange
-                  }
-                  placeholder="Enter shop name"
+                  type="number"
+                  min="1"
+                  step="1"
+                  name="quantity"
+                  value={purchaseForm.quantity}
+                  onChange={handlePurchaseChange}
+                  placeholder="Enter quantity"
+                  required
                 />
-
               </div>
 
+              {/* PURCHASE PRICE */}
 
-              <div className="inventory-form-group">
+              <div className="form-group">
+                <label>Purchase Price</label>
 
-                <label>
-                  Notes
-                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  name="purchase_price"
+                  value={purchaseForm.purchase_price}
+                  onChange={handlePurchaseChange}
+                  placeholder="Enter purchase price"
+                />
+              </div>
+
+              {/* PURCHASE DATE */}
+
+              <div className="form-group">
+                <label>Purchase Date</label>
+
+                <input
+                  type="date"
+                  name="purchase_date"
+                  value={purchaseForm.purchase_date}
+                  onChange={handlePurchaseChange}
+                />
+              </div>
+
+              {/* NOTES */}
+
+              <div className="form-group full">
+                <label>Notes</label>
 
                 <textarea
                   name="notes"
-                  value={
-                    purchaseForm.notes
-                  }
-                  onChange={
-                    handlePurchaseChange
-                  }
-                  placeholder="Optional notes"
+                  value={purchaseForm.notes}
+                  onChange={handlePurchaseChange}
+                  placeholder="Optional notes..."
                   rows="3"
                 />
-
               </div>
 
+              {/* ACTIONS */}
 
-              <div className="inventory-modal-actions">
-
+              <div className="modal-actions">
                 <button
                   type="button"
-                  className="inventory-cancel-btn"
-                  onClick={
-                    closePurchaseModal
-                  }
-                  disabled={
-                    saving
-                  }
+                  className="cancel-btn"
+                  onClick={closePurchaseModal}
+                  disabled={saving}
                 >
                   Cancel
                 </button>
 
-
-                <button
-                  type="submit"
-                  className="inventory-primary-btn"
-                  disabled={
-                    saving
-                  }
-                >
-                  {saving
-                    ? "Saving..."
-                    : "Add Purchase"}
+                <button type="submit" className="save-btn" disabled={saving}>
+                  {saving ? "Adding..." : "Add Purchase"}
                 </button>
-
               </div>
-
             </form>
-
           </div>
-
         </div>
-
       )}
 
-
       {/* =================================================
-          ADJUST STOCK MODAL
-      ================================================= */}
+          ADJUSTMENT MODAL
+          ================================================= */}
 
-      {showAdjustModal &&
-        selectedProduct && (
-
+      {showAdjustModal && selectedItem && (
         <div
           className="inventory-modal-overlay"
           onMouseDown={(event) => {
-
-            if (
-              event.target ===
-              event.currentTarget
-            ) {
-
+            if (event.target === event.currentTarget) {
               closeAdjustModal();
-
             }
-
           }}
         >
-
           <div className="inventory-modal">
-
-            <div className="inventory-modal-header">
-
+            <div className="modal-header">
               <div>
+                <h2>Adjust Stock</h2>
 
-                <h2>
-                  Adjust Stock
-                </h2>
-
-                <p>
-                  {getProductName(
-                    selectedProduct
-                  )}
-                </p>
-
+                <p>Manually increase or decrease stock.</p>
               </div>
-
 
               <button
                 type="button"
-                onClick={
-                  closeAdjustModal
-                }
-                disabled={
-                  saving
-                }
+                className="modal-close"
+                onClick={closeAdjustModal}
+                disabled={saving}
               >
                 ×
               </button>
-
             </div>
 
+            <form className="inventory-form" onSubmit={handleAdjustSubmit}>
+              {/* PRODUCT */}
 
-            <div className="inventory-current-stock">
+              <div className="selected-product-box">
+                <strong>{selectedItem.productName}</strong>
 
-              <span>
-                Current Stock
-              </span>
+                <span>Current Stock: {selectedItem.currentStock}</span>
 
-              <strong>
-                {
-                  getCurrentStock(
-                    selectedProduct
-                  )
-                }
-              </strong>
-
-            </div>
-
-
-            <form
-              onSubmit={
-                handleAdjustSubmit
-              }
-            >
-
-              <div className="inventory-form-row">
-
-                <div className="inventory-form-group">
-
-                  <label>
-                    Adjustment Type
-                  </label>
-
-                  <select
-                    name="type"
-                    value={
-                      adjustForm.type
-                    }
-                    onChange={
-                      handleAdjustChange
-                    }
-                  >
-
-                    <option value="add">
-                      Add Stock
-                    </option>
-
-                    <option value="remove">
-                      Remove Stock
-                    </option>
-
-                  </select>
-
-                </div>
-
-
-                <div className="inventory-form-group">
-
-                  <label>
-                    Quantity
-                  </label>
-
-                  <input
-                    type="number"
-                    name="quantity"
-                    min="1"
-                    value={
-                      adjustForm.quantity
-                    }
-                    onChange={
-                      handleAdjustChange
-                    }
-                    placeholder="Enter quantity"
-                    required
-                  />
-
-                </div>
-
+                <span>Minimum Stock: {selectedItem.lowStockLimit}</span>
               </div>
 
+              {/* ADJUSTMENT */}
 
-              <div className="inventory-form-group">
-
+              <div className="form-group">
                 <label>
-                  Reason
+                  Adjustment Quantity
+                  <span>*</span>
                 </label>
 
-                <textarea
-                  name="reason"
-                  value={
-                    adjustForm.reason
-                  }
-                  onChange={
-                    handleAdjustChange
-                  }
-                  placeholder="Enter adjustment reason"
-                  rows="3"
+                <input
+                  type="number"
+                  step="1"
+                  name="quantity"
+                  value={adjustForm.quantity}
+                  onChange={handleAdjustChange}
+                  placeholder="+10 or -5"
+                  required
                 />
 
+                <small className="form-help">
+                  Use a positive number to add stock and a negative number to
+                  remove stock.
+                </small>
               </div>
 
+              {/* PREVIEW */}
 
-              <div className="inventory-modal-actions">
+              {adjustForm.quantity !== "" &&
+                Number.isInteger(Number(adjustForm.quantity)) && (
+                  <div className="adjust-preview">
+                    <span>New Stock</span>
 
+                    <strong>
+                      {Math.max(
+                        0,
+                        selectedItem.currentStock + Number(adjustForm.quantity),
+                      )}
+                    </strong>
+                  </div>
+                )}
+
+              {/* NOTES */}
+
+              <div className="form-group">
+                <label>Notes</label>
+
+                <textarea
+                  name="notes"
+                  value={adjustForm.notes}
+                  onChange={handleAdjustChange}
+                  placeholder="Reason for adjustment..."
+                  rows="3"
+                />
+              </div>
+
+              {/* ACTIONS */}
+
+              <div className="modal-actions">
                 <button
                   type="button"
-                  className="inventory-cancel-btn"
-                  onClick={
-                    closeAdjustModal
-                  }
-                  disabled={
-                    saving
-                  }
+                  className="cancel-btn"
+                  onClick={closeAdjustModal}
+                  disabled={saving}
                 >
                   Cancel
                 </button>
 
-
-                <button
-                  type="submit"
-                  className="inventory-primary-btn"
-                  disabled={
-                    saving
-                  }
-                >
-                  {saving
-                    ? "Saving..."
-                    : "Adjust Stock"}
+                <button type="submit" className="save-btn" disabled={saving}>
+                  {saving ? "Updating..." : "Adjust Stock"}
                 </button>
-
               </div>
-
             </form>
-
           </div>
-
         </div>
-
       )}
-
     </div>
   );
 };
-
 
 export default Inventory;
