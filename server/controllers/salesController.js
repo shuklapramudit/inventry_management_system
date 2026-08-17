@@ -62,14 +62,6 @@ const toNumber = (
 // =====================================================
 // PRODUCT TYPES ALLOWED FOR SALES
 // =====================================================
-//
-// Existing frontend uses frame_product_id.
-// We keep that field unchanged so current frontend
-// functionality does not break.
-//
-// Both Frame and Sunglass are allowed.
-//
-// =====================================================
 
 const SALES_PRODUCT_TYPES = [
   "Frame",
@@ -138,10 +130,6 @@ export const getCustomerSalesInfo =
         Number(
           req.params.customerId
         );
-
-      // =================================================
-      // VALIDATE CUSTOMER ID
-      // =================================================
 
       if (
         !Number.isInteger(
@@ -245,90 +233,21 @@ export const getCustomerSalesInfo =
         );
 
       // =================================================
-      // AVAILABLE PRODUCTS
-      // =================================================
-      //
-      // IMPORTANT:
-      // Previously only Frame was allowed.
-      //
-      // Now Frame + Sunglass are returned.
-      //
-      // We keep response key "frames" so existing
-      // frontend styling/functionality remains compatible.
-      //
-      // =================================================
-
-      const [frames] =
-        await db.query(
-          `
-          SELECT
-            p.id,
-            p.product_type,
-            p.product_name,
-            p.selling_price,
-            p.product_image,
-            p.shop_location,
-            p.description,
-
-            COALESCE(
-              i.current_stock,
-              0
-            ) AS current_stock,
-
-            COALESCE(
-              i.low_stock_limit,
-              0
-            ) AS low_stock_limit
-
-          FROM products p
-
-          LEFT JOIN inventory i
-            ON p.id = i.product_id
-
-          WHERE
-            LOWER(
-              TRIM(
-                p.product_type
-              )
-            ) IN (
-              'frame',
-              'sunglass',
-              'sunglasses'
-            )
-
-            AND p.is_active = TRUE
-
-            AND COALESCE(
-              i.current_stock,
-              0
-            ) > 0
-
-          ORDER BY
-            p.product_type ASC,
-            p.product_name ASC
-          `
-        );
-
-      // =================================================
-      // RESPONSE
+      // RETURN
       // =================================================
 
       return res.status(200).json({
         success: true,
-
         customer:
           customers[0],
-
-        latestEyeTest:
+        eyeTest:
           eyeTests.length > 0
             ? eyeTests[0]
             : null,
-
-        frames,
       });
     } catch (error) {
       console.error(
-        "Customer Sales Info Error:",
+        "Get Customer Sales Info Error:",
         error
       );
 
@@ -336,12 +255,64 @@ export const getCustomerSalesInfo =
         success: false,
         message:
           "Failed to fetch customer sales information",
-        error:
-          error.message,
-        sqlMessage:
-          error.sqlMessage || null,
-        code:
-          error.code || null,
+        error: error.message,
+      });
+    }
+  };
+
+// =====================================================
+// GET SALES PRODUCTS
+// GET /api/sales/products
+// =====================================================
+
+export const getSalesProducts =
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const [products] =
+        await db.query(
+          `
+          SELECT
+            id,
+            product_type,
+            product_name,
+            selling_price,
+            stock_quantity,
+            minimum_stock,
+            product_image,
+            shop_location,
+            description,
+            is_active
+          FROM products
+          WHERE is_active = 1
+          AND product_type IN (
+            'Frame',
+            'Sunglass',
+            'Sunglasses'
+          )
+          ORDER BY
+            product_name ASC
+          `
+        );
+
+      return res.status(200).json({
+        success: true,
+        count: products.length,
+        products,
+      });
+    } catch (error) {
+      console.error(
+        "Get Sales Products Error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Failed to fetch sales products",
+        error: error.message,
       });
     }
   };
@@ -351,263 +322,122 @@ export const getCustomerSalesInfo =
 // POST /api/sales
 // =====================================================
 
-export const createSale = async (
-  req,
-  res
-) => {
-  let connection = null;
-
-  try {
-    // =================================================
-    // GET CONNECTION
-    // =================================================
-
-    connection =
+export const createSale =
+  async (
+    req,
+    res
+  ) => {
+    const connection =
       await db.getConnection();
 
-    // =================================================
-    // REQUEST DATA
-    // =================================================
+    try {
+      const {
+        customer_id,
+        items = [],
+        discount_percent = 0,
+        payment_method = "CASH",
+        payment_status = "PENDING",
 
-    const {
-      customer_id,
-      eye_test_id,
+        // =================================================
+        // ADVANCE RECEIVED
+        // =================================================
 
-      lens_type_id,
-      lens_type_name,
-      lens_price,
+        advance_amount = 0,
 
-      frame_product_id,
-      frame_name,
-      frame_price,
+        notes = "",
+      } = req.body;
 
-      discount_percent = 0,
+      // =================================================
+      // CUSTOMER ID
+      // =================================================
 
-      gst_enabled = false,
-      gst_percent = 0,
+      const customerId =
+        Number(customer_id);
 
-      payment_status = "PENDING",
-      payment_method,
-
-      notes,
-    } = req.body;
-
-    // =================================================
-    // CUSTOMER ID
-    // =================================================
-
-    const customerId =
-      Number(customer_id);
-
-    if (
-      !Number.isInteger(
-        customerId
-      ) ||
-      customerId <= 0
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Valid customer is required",
-      });
-    }
-
-    // =================================================
-    // DISCOUNT
-    // =================================================
-
-    const discount =
-      toNumber(
-        discount_percent
-      );
-
-    if (
-      !ALLOWED_DISCOUNTS.includes(
-        discount
-      )
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Discount must be 0, 5, 10, 15, 20, 25 or 30",
-      });
-    }
-
-    // =================================================
-    // GST
-    // =================================================
-
-    const gstEnabled =
-      gst_enabled === true ||
-      gst_enabled === 1 ||
-      gst_enabled === "true";
-
-    const gst =
-      toNumber(
-        gst_percent
-      );
-
-    if (
-      gstEnabled &&
-      (
-        !Number.isFinite(
-          gst
-        ) ||
-        gst < 0 ||
-        gst > 100
-      )
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid GST percentage",
-      });
-    }
-
-    // =================================================
-    // PRICES
-    // =================================================
-
-    let lensPrice =
-      toNumber(
-        lens_price
-      );
-
-    let framePrice =
-      toNumber(
-        frame_price
-      );
-
-    if (
-      !Number.isFinite(
-        lensPrice
-      ) ||
-      lensPrice < 0
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid lens price",
-      });
-    }
-
-    if (
-      !Number.isFinite(
-        framePrice
-      ) ||
-      framePrice < 0
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid frame price",
-      });
-    }
-
-    // =================================================
-    // PAYMENT STATUS
-    // =================================================
-
-    const finalPaymentStatus =
-      normalizePaymentStatus(
-        payment_status
-      );
-
-    // =================================================
-    // IDS
-    // =================================================
-
-    const finalEyeTestId =
-      eye_test_id
-        ? Number(eye_test_id)
-        : null;
-
-    const frameProductId =
-      frame_product_id
-        ? Number(
-            frame_product_id
-          )
-        : null;
-
-    const finalLensTypeId =
-      lens_type_id
-        ? Number(
-            lens_type_id
-          )
-        : null;
-
-    // =================================================
-    // VALIDATE EYE TEST ID
-    // =================================================
-
-    if (
-      finalEyeTestId !== null &&
-      (
+      if (
         !Number.isInteger(
-          finalEyeTestId
+          customerId
         ) ||
-        finalEyeTestId <= 0
-      )
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid eye test ID",
-      });
-    }
+        customerId <= 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Valid customer is required",
+        });
+      }
 
-    // =================================================
-    // VALIDATE LENS TYPE ID
-    // =================================================
+      // =================================================
+      // ITEMS
+      // =================================================
 
-    if (
-      finalLensTypeId !== null &&
-      (
-        !Number.isInteger(
-          finalLensTypeId
-        ) ||
-        finalLensTypeId <= 0
-      )
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid lens type ID",
-      });
-    }
+      if (
+        !Array.isArray(items) ||
+        items.length === 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "At least one sale item is required",
+        });
+      }
 
-    // =================================================
-    // VALIDATE PRODUCT ID
-    // =================================================
+      // =================================================
+      // DISCOUNT
+      // =================================================
 
-    if (
-      frameProductId !== null &&
-      (
-        !Number.isInteger(
-          frameProductId
-        ) ||
-        frameProductId <= 0
-      )
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid product ID",
-      });
-    }
+      const discountPercent =
+        toNumber(
+          discount_percent,
+          0
+        );
 
-    // =================================================
-    // START TRANSACTION
-    // =================================================
+      if (
+        !ALLOWED_DISCOUNTS.includes(
+          discountPercent
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid discount percentage",
+        });
+      }
 
-    await connection.beginTransaction();
+      // =================================================
+      // PAYMENT STATUS
+      // =================================================
 
-    // =================================================
-    // CUSTOMER CHECK
-    // =================================================
+      let finalPaymentStatus =
+        normalizePaymentStatus(
+          payment_status
+        );
 
-    const [customers] =
-      await connection.query(
+      // =================================================
+      // ADVANCE
+      // =================================================
+
+      let advanceAmount =
+        toNumber(
+          advance_amount,
+          0
+        );
+
+      if (
+        advanceAmount < 0
+      ) {
+        advanceAmount = 0;
+      }
+
+      await connection.beginTransaction();
+
+      // =================================================
+      // CUSTOMER CHECK
+      // =================================================
+
+      const [
+        customerRows,
+      ] = await connection.query(
         `
         SELECT
           id,
@@ -620,785 +450,499 @@ export const createSale = async (
         [customerId]
       );
 
-    if (
-      customers.length === 0
-    ) {
-      await connection.rollback();
+      if (
+        customerRows.length === 0
+      ) {
+        await connection.rollback();
 
-      return res.status(404).json({
-        success: false,
-        message:
-          "Customer not found",
-      });
-    }
+        return res.status(404).json({
+          success: false,
+          message:
+            "Customer not found",
+        });
+      }
 
-    // =================================================
-    // LENS INFORMATION
-    // =================================================
+      // =================================================
+      // CALCULATE ITEMS
+      // =================================================
 
-    let finalLensName =
-      lens_type_name
-        ? String(
-            lens_type_name
-          ).trim()
-        : null;
+      let subtotal = 0;
 
-    // =================================================
-    // EYE TEST CHECK
-    // =================================================
+      const saleItems = [];
 
-    if (
-      finalEyeTestId !== null
-    ) {
-      const [eyeTests] =
-        await connection.query(
+      for (
+        const item of items
+      ) {
+        const productId =
+          Number(
+            item.product_id ||
+            item.frame_product_id
+          );
+
+        const quantity =
+          Number(
+            item.quantity || 1
+          );
+
+        if (
+          !Number.isInteger(
+            productId
+          ) ||
+          productId <= 0
+        ) {
+          throw new Error(
+            "Invalid product ID"
+          );
+        }
+
+        if (
+          !Number.isInteger(
+            quantity
+          ) ||
+          quantity <= 0
+        ) {
+          throw new Error(
+            "Invalid quantity"
+          );
+        }
+
+        // ===============================================
+        // PRODUCT
+        // ===============================================
+
+        const [
+          productRows,
+        ] = await connection.query(
           `
           SELECT
             id,
-            customer_id,
-            lens_type_id,
-            lens_type_name,
-            lens_price,
-            frame_product_id,
-            frame_name,
-            frame_price
-          FROM eye_tests
+            product_type,
+            product_name,
+            selling_price,
+            stock_quantity,
+            is_active
+          FROM products
           WHERE id = ?
           LIMIT 1
           `,
-          [finalEyeTestId]
+          [productId]
         );
 
-      if (
-        eyeTests.length === 0
-      ) {
-        await connection.rollback();
+        if (
+          productRows.length === 0
+        ) {
+          throw new Error(
+            `Product not found: ${productId}`
+          );
+        }
 
-        return res.status(404).json({
-          success: false,
-          message:
-            "Eye test not found",
-        });
-      }
+        const product =
+          productRows[0];
 
-      if (
-        Number(
-          eyeTests[0].customer_id
-        ) !== customerId
-      ) {
-        await connection.rollback();
-
-        return res.status(400).json({
-          success: false,
-          message:
-            "Eye test does not belong to selected customer",
-        });
-      }
-
-      if (
-        !finalLensName
-      ) {
-        finalLensName =
-          eyeTests[0]
-            .lens_type_name ||
-          null;
-      }
-    }
-
-    // =================================================
-    // LENS TYPE CHECK
-    // =================================================
-
-    if (
-      finalLensTypeId !== null
-    ) {
-      const [lensTypes] =
-        await connection.query(
-          `
-          SELECT
-            id,
-            name
-          FROM lens_types
-          WHERE id = ?
-          LIMIT 1
-          `,
-          [finalLensTypeId]
-        );
-
-      if (
-        lensTypes.length === 0
-      ) {
-        await connection.rollback();
-
-        return res.status(404).json({
-          success: false,
-          message:
-            "Lens type not found",
-        });
-      }
-
-      if (
-        !finalLensName
-      ) {
-        finalLensName =
-          lensTypes[0].name;
-      }
-    }
-
-    // =================================================
-    // PRODUCT INFORMATION
-    // =================================================
-
-    let finalFrameName =
-      frame_name
-        ? String(
-            frame_name
-          ).trim()
-        : null;
-
-    let selectedProductType =
-      null;
-
-    // =================================================
-    // REAL PRODUCT
-    // =================================================
-
-    if (
-      frameProductId !== null
-    ) {
-      const [products] =
-        await connection.query(
-          `
-          SELECT
-            p.id,
-            p.product_type,
-            p.product_name,
-            p.selling_price,
-            p.product_image,
-
-            COALESCE(
-              i.current_stock,
-              0
-            ) AS current_stock
-
-          FROM products p
-
-          LEFT JOIN inventory i
-            ON p.id = i.product_id
-
-          WHERE
-            p.id = ?
-
-            AND LOWER(
-              TRIM(
-                p.product_type
-              )
-            ) IN (
-              'frame',
-              'sunglass',
-              'sunglasses'
-            )
-
-            AND p.is_active = TRUE
-
-          LIMIT 1
-
-          FOR UPDATE
-          `,
-          [frameProductId]
-        );
-
-      if (
-        products.length === 0
-      ) {
-        await connection.rollback();
-
-        return res.status(404).json({
-          success: false,
-          message:
-            "Selected product not found",
-        });
-      }
-
-      const product =
-        products[0];
-
-      selectedProductType =
-        product.product_type;
-
-      // =================================================
-      // STOCK CHECK
-      // =================================================
-
-      if (
-        Number(
-          product.current_stock
-        ) < 1
-      ) {
-        await connection.rollback();
-
-        return res.status(400).json({
-          success: false,
-          message:
-            "Selected product is out of stock",
-        });
-      }
-
-      // =================================================
-      // ALWAYS USE PRODUCT PRICE
-      // =================================================
-
-      framePrice =
-        toNumber(
-          product.selling_price
-        );
-
-      finalFrameName =
-        product.product_name;
-    }
-
-    // =================================================
-    // MANUAL FRAME
-    // =================================================
-
-    if (
-      frameProductId === null &&
-      framePrice > 0 &&
-      !finalFrameName
-    ) {
-      finalFrameName =
-        "Manual Frame";
-    }
-
-    // =================================================
-    // AT LEAST ONE ITEM
-    // =================================================
-
-    if (
-      lensPrice <= 0 &&
-      framePrice <= 0
-    ) {
-      await connection.rollback();
-
-      return res.status(400).json({
-        success: false,
-        message:
-          "At least one lens or frame is required",
-      });
-    }
-
-    // =================================================
-    // CALCULATIONS
-    // =================================================
-
-    const subtotal =
-      Number(
-        (
-          lensPrice +
-          framePrice
-        ).toFixed(2)
-      );
-
-    const discountAmount =
-      Number(
-        (
-          subtotal *
-          discount /
-          100
-        ).toFixed(2)
-      );
-
-    const taxableAmount =
-      Number(
-        (
-          subtotal -
-          discountAmount
-        ).toFixed(2)
-      );
-
-    const gstAmount =
-      gstEnabled
-        ? Number(
-            (
-              taxableAmount *
-              gst /
-              100
-            ).toFixed(2)
+        if (
+          !SALES_PRODUCT_TYPES.includes(
+            product.product_type
           )
-        : 0;
+        ) {
+          throw new Error(
+            `${product.product_name} is not a valid sales product`
+          );
+        }
 
-    const grandTotal =
-      Number(
-        (
-          taxableAmount +
-          gstAmount
-        ).toFixed(2)
-      );
+        if (
+          Number(
+            product.is_active
+          ) !== 1
+        ) {
+          throw new Error(
+            `${product.product_name} is inactive`
+          );
+        }
 
-    // =================================================
-    // CREATE SALE
-    // =================================================
+        // ===============================================
+        // STOCK CHECK
+        // ===============================================
 
-    const [saleResult] =
-      await connection.query(
+        if (
+          Number(
+            product.stock_quantity
+          ) < quantity
+        ) {
+          throw new Error(
+            `Insufficient stock for ${product.product_name}`
+          );
+        }
+
+        // ===============================================
+        // PRICE
+        // ===============================================
+
+        const unitPrice =
+          toNumber(
+            item.unit_price,
+            product.selling_price
+          );
+
+        const totalPrice =
+          unitPrice * quantity;
+
+        subtotal += totalPrice;
+
+        saleItems.push({
+          product_id:
+            product.id,
+
+          item_type:
+            product.product_type,
+
+          item_name:
+            product.product_name,
+
+          quantity,
+
+          unit_price:
+            unitPrice,
+
+          total_price:
+            totalPrice,
+        });
+      }
+
+      // =================================================
+      // DISCOUNT AMOUNT
+      // =================================================
+
+      const discountAmount =
+        subtotal *
+        (discountPercent / 100);
+
+      // =================================================
+      // AFTER DISCOUNT
+      // =================================================
+
+      const taxableAmount =
+        subtotal -
+        discountAmount;
+
+      // =================================================
+      // GST
+      // =================================================
+
+      const gstPercent =
+        toNumber(
+          req.body.gst_percent,
+          0
+        );
+
+      const gstAmount =
+        taxableAmount *
+        (gstPercent / 100);
+
+      // =================================================
+      // GRAND TOTAL
+      // =================================================
+
+      const grandTotal =
+        taxableAmount +
+        gstAmount;
+
+      // =================================================
+      // ADVANCE VALIDATION
+      // =================================================
+
+      if (
+        advanceAmount >
+        grandTotal
+      ) {
+        await connection.rollback();
+
+        return res.status(400).json({
+          success: false,
+          message:
+            "Advance amount cannot be greater than grand total",
+          grand_total:
+            Number(
+              grandTotal.toFixed(2)
+            ),
+          advance_amount:
+            Number(
+              advanceAmount.toFixed(2)
+            ),
+          balance_due: 0,
+        });
+      }
+
+      // =================================================
+      // BALANCE DUE
+      // =================================================
+
+      const balanceDue =
+        Math.max(
+          0,
+          grandTotal -
+            advanceAmount
+        );
+
+      // =================================================
+      // AUTO PAYMENT STATUS
+      // =================================================
+
+      if (
+        advanceAmount >=
+          grandTotal &&
+        grandTotal > 0
+      ) {
+        finalPaymentStatus =
+          "PAID";
+      } else if (
+        advanceAmount > 0
+      ) {
+        finalPaymentStatus =
+          "PARTIAL";
+      }
+
+      // =================================================
+      // INSERT SALE
+      // =================================================
+
+      const [
+        saleResult,
+      ] = await connection.query(
         `
-        INSERT INTO sales
-        (
+        INSERT INTO sales (
           customer_id,
-          eye_test_id,
-
           subtotal,
-
           discount_percent,
           discount_amount,
-
-          gst_enabled,
           gst_percent,
           gst_amount,
-
           grand_total,
-
-          payment_status,
+          advance_amount,
           payment_method,
-
+          payment_status,
           notes
         )
-
-        VALUES
-        (
-          ?,
-          ?,
-
-          ?,
-
-          ?,
-          ?,
-
+        VALUES (
           ?,
           ?,
           ?,
-
-          ?,
-
           ?,
           ?,
-
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
           ?
         )
         `,
         [
           customerId,
-          finalEyeTestId,
 
           subtotal,
 
-          discount,
+          discountPercent,
+
           discountAmount,
 
-          gstEnabled,
-          gstEnabled
-            ? gst
-            : 0,
+          gstPercent,
+
           gstAmount,
 
           grandTotal,
 
+          advanceAmount,
+
+          payment_method,
+
           finalPaymentStatus,
-          payment_method
-            ? String(
-                payment_method
-              ).trim()
-            : null,
 
-          notes
-            ? String(
-                notes
-              ).trim()
-            : null,
+          notes,
         ]
       );
 
-    const saleId =
-      saleResult.insertId;
+      const saleId =
+        saleResult.insertId;
 
-    if (!saleId) {
-      throw new Error(
-        "Sale could not be created"
-      );
-    }
+      // =================================================
+      // INSERT SALE ITEMS
+      // =================================================
 
-    // =================================================
-    // LENS SALE ITEM
-    // =================================================
-
-    if (
-      lensPrice > 0
-    ) {
-      await connection.query(
-        `
-        INSERT INTO sale_items
-        (
-          sale_id,
-          item_type,
-          product_id,
-          item_name,
-          quantity,
-          unit_price,
-          total_price
-        )
-
-        VALUES
-        (
-          ?,
-          'LENS',
-          NULL,
-          ?,
-          1,
-          ?,
-          ?
-        )
-        `,
-        [
-          saleId,
-
-          finalLensName ||
-            "Custom Lens",
-
-          lensPrice,
-
-          lensPrice,
-        ]
-      );
-    }
-
-    // =================================================
-    // PRODUCT SALE ITEM
-    // =================================================
-    //
-    // We keep item_type = FRAME so the existing
-    // frontend/database functionality remains compatible.
-    //
-    // It can now represent Frame OR Sunglass.
-    //
-    // =================================================
-
-    if (
-      framePrice > 0
-    ) {
-      await connection.query(
-        `
-        INSERT INTO sale_items
-        (
-          sale_id,
-          item_type,
-          product_id,
-          item_name,
-          quantity,
-          unit_price,
-          total_price
-        )
-
-        VALUES
-        (
-          ?,
-          'FRAME',
-          ?,
-          ?,
-          1,
-          ?,
-          ?
-        )
-        `,
-        [
-          saleId,
-
-          frameProductId,
-
-          finalFrameName ||
-            "Manual Frame",
-
-          framePrice,
-
-          framePrice,
-        ]
-      );
-    }
-
-    // =================================================
-    // REDUCE REAL PRODUCT STOCK
-    // =================================================
-
-    if (
-      frameProductId !== null
-    ) {
-      const [
-        stockResult,
-      ] =
-        await connection.query(
-          `
-          UPDATE inventory
-
-          SET
-            sold_quantity =
-              sold_quantity + 1,
-
-            current_stock =
-              current_stock - 1
-
-          WHERE
-            product_id = ?
-
-            AND current_stock > 0
-          `,
-          [
-            frameProductId,
-          ]
-        );
-
-      if (
-        stockResult.affectedRows === 0
+      for (
+        const item of saleItems
       ) {
-        await connection.rollback();
-
-        return res.status(400).json({
-          success: false,
-          message:
-            "Unable to reduce product stock",
-        });
-      }
-
-      // =================================================
-      // INVENTORY MOVEMENT
-      // =================================================
-
-      try {
         await connection.query(
           `
-          INSERT INTO inventory_movements
-          (
+          INSERT INTO sale_items (
+            sale_id,
             product_id,
-            movement_type,
+            item_type,
+            item_name,
             quantity,
-            reference_id,
-            reference_type,
-            notes
+            unit_price,
+            total_price
           )
-
-          VALUES
-          (
+          VALUES (
             ?,
-            'SALE',
-            -1,
             ?,
-            'SALE',
+            ?,
+            ?,
+            ?,
+            ?,
             ?
           )
           `,
           [
-            frameProductId,
-
             saleId,
 
-            selectedProductType
-              ? `${selectedProductType} sold`
-              : "Product sold",
+            item.product_id,
+
+            item.item_type,
+
+            item.item_name,
+
+            item.quantity,
+
+            item.unit_price,
+
+            item.total_price,
           ]
         );
-      } catch (
-        movementError
-      ) {
-        console.warn(
-          "Inventory movement was not recorded:",
-          movementError.message
+
+        // ===============================================
+        // REDUCE STOCK
+        // ===============================================
+
+        await connection.query(
+          `
+          UPDATE products
+          SET stock_quantity =
+              stock_quantity - ?
+          WHERE id = ?
+          AND stock_quantity >= ?
+          `,
+          [
+            item.quantity,
+
+            item.product_id,
+
+            item.quantity,
+          ]
         );
       }
-    }
 
-    // =================================================
-    // COMMIT
-    // =================================================
+      await connection.commit();
 
-    await connection.commit();
+      // =================================================
+      // RESPONSE
+      // =================================================
 
-    // =================================================
-    // FETCH CREATED SALE
-    // =================================================
+      return res.status(201).json({
+        success: true,
 
-    const [saleRows] =
-      await db.query(
-        `
-        SELECT
-          s.id,
-          s.customer_id,
+        message:
+          "Sale created successfully",
 
-          c.name AS customer_name,
-          c.mobile AS customer_mobile,
+        sale: {
+          id: saleId,
 
-          s.eye_test_id,
+          customer_id:
+            customerId,
 
-          s.subtotal,
+          subtotal:
+            Number(
+              subtotal.toFixed(2)
+            ),
 
-          s.discount_percent,
-          s.discount_amount,
+          discount_percent:
+            discountPercent,
 
-          s.gst_enabled,
-          s.gst_percent,
-          s.gst_amount,
+          discount_amount:
+            Number(
+              discountAmount.toFixed(2)
+            ),
 
-          s.grand_total,
+          gst_percent:
+            gstPercent,
 
-          s.payment_status,
-          s.payment_method,
+          gst_amount:
+            Number(
+              gstAmount.toFixed(2)
+            ),
 
-          s.sale_date,
-          s.created_at,
+          grand_total:
+            Number(
+              grandTotal.toFixed(2)
+            ),
 
-          s.notes
+          // =============================================
+          // NEW
+          // =============================================
 
-        FROM sales s
+          advance_amount:
+            Number(
+              advanceAmount.toFixed(2)
+            ),
 
-        LEFT JOIN customers c
-          ON c.id =
-             s.customer_id
+          balance_due:
+            Number(
+              balanceDue.toFixed(2)
+            ),
 
-        WHERE s.id = ?
+          payment_method,
 
-        LIMIT 1
-        `,
-        [saleId]
-      );
+          payment_status:
+            finalPaymentStatus,
 
-    const [items] =
-      await db.query(
-        `
-        SELECT
-          id,
-          sale_id,
-          item_type,
-          product_id,
-          item_name,
-          quantity,
-          unit_price,
-          total_price
+          notes,
+        },
 
-        FROM sale_items
-
-        WHERE sale_id = ?
-
-        ORDER BY id ASC
-        `,
-        [saleId]
-      );
-
-    // =================================================
-    // SUCCESS RESPONSE
-    // =================================================
-
-    return res.status(201).json({
-      success: true,
-
-      message:
-        "Sale created successfully",
-
-      sale:
-        saleRows[0] || null,
-
-      items,
-
-      calculation: {
-        subtotal,
-
-        discount_percent:
-          discount,
-
-        discount_amount:
-          discountAmount,
-
-        taxable_amount:
-          taxableAmount,
-
-        gst_enabled:
-          gstEnabled,
-
-        gst_percent:
-          gstEnabled
-            ? gst
-            : 0,
-
-        gst_amount:
-          gstAmount,
-
-        grand_total:
-          grandTotal,
-      },
-    });
-  } catch (error) {
-    // =================================================
-    // ROLLBACK
-    // =================================================
-
-    if (connection) {
+        items:
+          saleItems,
+      });
+    } catch (error) {
       try {
         await connection.rollback();
-      } catch (
-        rollbackError
-      ) {
-        console.error(
-          "Rollback Error:",
-          rollbackError
-        );
-      }
-    }
+      } catch {}
 
-    // =================================================
-    // LOG
-    // =================================================
+      console.error(
+        "Create Sale Error:",
+        error
+      );
 
-    console.error(
-      "Create Sale Error:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-
-      message:
-        "Failed to create sale",
-
-      error:
-        error.message,
-
-      sqlMessage:
-        error.sqlMessage ||
-        null,
-
-      code:
-        error.code ||
-        null,
-    });
-  } finally {
-    // =================================================
-    // RELEASE
-    // =================================================
-
-    if (connection) {
+      return res.status(500).json({
+        success: false,
+        message:
+          error.message ||
+          "Failed to create sale",
+        error:
+          error.message,
+        sqlMessage:
+          error.sqlMessage ||
+          null,
+        code:
+          error.code ||
+          null,
+      });
+    } finally {
       connection.release();
     }
-  }
-};
+  };
 
 // =====================================================
 // GET ALL SALES
 // GET /api/sales
 // =====================================================
 
-export const getSales = async (
-  req,
-  res
-) => {
-  try {
-    const [sales] =
-      await db.query(
+export const getSales =
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const [
+        sales,
+      ] = await db.query(
         `
         SELECT
           s.id,
@@ -1407,64 +951,70 @@ export const getSales = async (
           c.name AS customer_name,
           c.mobile AS customer_mobile,
 
-          s.eye_test_id,
-
           s.subtotal,
-
           s.discount_percent,
           s.discount_amount,
-
-          s.gst_enabled,
           s.gst_percent,
           s.gst_amount,
-
           s.grand_total,
 
-          s.payment_status,
+          s.advance_amount,
+
           s.payment_method,
+          s.payment_status,
+
+          s.notes,
 
           s.sale_date,
-          s.notes,
-          s.created_at
+          s.created_at,
+          s.updated_at
 
         FROM sales s
 
         LEFT JOIN customers c
-          ON s.customer_id =
-             c.id
+          ON s.customer_id = c.id
 
         ORDER BY
-          s.sale_date DESC,
           s.id DESC
         `
       );
 
-    return res.status(200).json({
-      success: true,
-      count: sales.length,
-      sales,
-    });
-  } catch (error) {
-    console.error(
-      "Get Sales Error:",
-      error
-    );
+      return res.status(200).json({
+        success: true,
+        count: sales.length,
+        sales:
+          sales.map(
+            (sale) => ({
+              ...sale,
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to fetch sales",
-      error:
-        error.message,
-      sqlMessage:
-        error.sqlMessage ||
-        null,
-      code:
-        error.code ||
-        null,
-    });
-  }
-};
+              balance_due:
+                Math.max(
+                  0,
+                  Number(
+                    sale.grand_total || 0
+                  ) -
+                    Number(
+                      sale.advance_amount ||
+                        0
+                    )
+                ),
+            })
+          ),
+      });
+    } catch (error) {
+      console.error(
+        "Get Sales Error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Failed to fetch sales",
+        error: error.message,
+      });
+    }
+  };
 
 // =====================================================
 // GET SALE BY ID
@@ -1499,49 +1049,48 @@ export const getSaleById =
       // SALE
       // =================================================
 
-      const [sales] =
-        await db.query(
-          `
-          SELECT
-            s.id,
-            s.customer_id,
+      const [
+        sales,
+      ] = await db.query(
+        `
+        SELECT
+          s.id,
+          s.customer_id,
 
-            c.name AS customer_name,
-            c.mobile AS customer_mobile,
+          c.name AS customer_name,
+          c.mobile AS customer_mobile,
 
-            s.eye_test_id,
+          s.subtotal,
+          s.discount_percent,
+          s.discount_amount,
 
-            s.subtotal,
+          s.gst_percent,
+          s.gst_amount,
 
-            s.discount_percent,
-            s.discount_amount,
+          s.grand_total,
 
-            s.gst_enabled,
-            s.gst_percent,
-            s.gst_amount,
+          s.advance_amount,
 
-            s.grand_total,
+          s.payment_method,
+          s.payment_status,
 
-            s.payment_status,
-            s.payment_method,
+          s.notes,
 
-            s.sale_date,
-            s.created_at,
+          s.sale_date,
+          s.created_at,
+          s.updated_at
 
-            s.notes
+        FROM sales s
 
-          FROM sales s
+        LEFT JOIN customers c
+          ON s.customer_id = c.id
 
-          LEFT JOIN customers c
-            ON c.id =
-               s.customer_id
+        WHERE s.id = ?
 
-          WHERE s.id = ?
-
-          LIMIT 1
-          `,
-          [saleId]
-        );
+        LIMIT 1
+        `,
+        [saleId]
+      );
 
       if (
         sales.length === 0
@@ -1554,42 +1103,67 @@ export const getSaleById =
       }
 
       // =================================================
-      // SALE ITEMS
+      // ITEMS
       // =================================================
 
-      const [items] =
-        await db.query(
-          `
-          SELECT
-            id,
-            sale_id,
-            item_type,
-            product_id,
-            item_name,
-            quantity,
-            unit_price,
-            total_price
+      const [
+        items,
+      ] = await db.query(
+        `
+        SELECT
+          id,
+          sale_id,
+          product_id,
+          item_type,
+          item_name,
+          quantity,
+          unit_price,
+          total_price
+        FROM sale_items
+        WHERE sale_id = ?
+        ORDER BY id ASC
+        `,
+        [saleId]
+      );
 
-          FROM sale_items
+      const sale =
+        sales[0];
 
-          WHERE sale_id = ?
+      const grandTotal =
+        Number(
+          sale.grand_total || 0
+        );
 
-          ORDER BY id ASC
-          `,
-          [saleId]
+      const advanceAmount =
+        Number(
+          sale.advance_amount || 0
+        );
+
+      const balanceDue =
+        Math.max(
+          0,
+          grandTotal -
+            advanceAmount
         );
 
       return res.status(200).json({
         success: true,
 
-        sale:
-          sales[0],
+        sale: {
+          ...sale,
+
+          advance_amount:
+            advanceAmount,
+
+          balance_due:
+            balanceDue,
+        },
 
         items,
       });
     } catch (error) {
       console.error(
-        "Get Sale Error:",
+        "Get Sale By ID Error:",
         error
       );
 
@@ -1597,14 +1171,7 @@ export const getSaleById =
         success: false,
         message:
           "Failed to fetch sale",
-        error:
-          error.message,
-        sqlMessage:
-          error.sqlMessage ||
-          null,
-        code:
-          error.code ||
-          null,
+        error: error.message,
       });
     }
   };
@@ -1638,39 +1205,25 @@ export const updatePaymentStatus =
         });
       }
 
-      const {
-        payment_status,
-        payment_method,
-      } = req.body;
-
       const status =
         normalizePaymentStatus(
-          payment_status
+          req.body.payment_status
         );
 
-      const [result] =
-        await db.query(
-          `
-          UPDATE sales
-
-          SET
-            payment_status = ?,
-            payment_method = ?
-
-          WHERE id = ?
-          `,
-          [
-            status,
-
-            payment_method
-              ? String(
-                  payment_method
-                ).trim()
-              : null,
-
-            saleId,
-          ]
-        );
+      const [
+        result,
+      ] = await db.query(
+        `
+        UPDATE sales
+        SET
+          payment_status = ?
+        WHERE id = ?
+        `,
+        [
+          status,
+          saleId,
+        ]
+      );
 
       if (
         result.affectedRows === 0
@@ -1686,10 +1239,12 @@ export const updatePaymentStatus =
         success: true,
         message:
           "Payment status updated successfully",
+        payment_status:
+          status,
       });
     } catch (error) {
       console.error(
-        "Update Payment Error:",
+        "Update Payment Status Error:",
         error
       );
 
@@ -1697,14 +1252,7 @@ export const updatePaymentStatus =
         success: false,
         message:
           "Failed to update payment status",
-        error:
-          error.message,
-        sqlMessage:
-          error.sqlMessage ||
-          null,
-        code:
-          error.code ||
-          null,
+        error: error.message,
       });
     }
   };

@@ -72,6 +72,8 @@ const DEFAULT_FORM = {
   gst_enabled: false,
   gst_percent: "18",
 
+  advance_amount: "",
+
   payment_status: "PENDING",
   payment_method: "Cash",
 
@@ -516,45 +518,34 @@ const Sales = () => {
   };
 
 
- // ===================================================
-// FRAME + SUNGLASSES PRODUCTS
-// ===================================================
-// Existing functionality remains the same.
-// Now both Frame and Sunglasses products are available
-// in the Sales product selector.
-// ===================================================
+  // ===================================================
+  // FRAME PRODUCTS
+  // ===================================================
 
-const frameProducts =
-  useMemo(() => {
+  const frameProducts =
+    useMemo(() => {
 
-    return products.filter(
-      (product) => {
+      return products.filter(
+        (product) => {
 
-        const type =
-          String(
-            product?.product_type ||
-            product?.ProductType ||
-            ""
-          )
-            .trim()
-            .toLowerCase();
+          const type =
+            String(
+              product?.product_type ||
+              product?.ProductType ||
+              ""
+            ).toLowerCase();
 
-        return (
-          (
-            type === "frame" ||
-            type === "sunglasses" ||
-            type === "sun-glasses" ||
-            type === "sunglass"
-          ) &&
-          product?.is_active !== 0 &&
-          getProductStock(
-            product
-          ) > 0
-        );
-      }
-    );
+          return (
+            type === "frame" &&
+            product?.is_active !== 0 &&
+            getProductStock(
+              product
+            ) > 0
+          );
+        }
+      );
 
-  }, [products]);
+    }, [products]);
 
 
   // ===================================================
@@ -989,6 +980,17 @@ const frameProducts =
         taxableAmount +
         gstAmount;
 
+      const advanceAmount =
+        Number(form.advance_amount) || 0;
+
+      const balanceDue =
+        Math.max(
+          0,
+          Number(
+            (grandTotal - advanceAmount).toFixed(2)
+          )
+        );
+
 
       return {
         lensPrice,
@@ -1000,6 +1002,8 @@ const frameProducts =
         gstPercent,
         gstAmount,
         grandTotal,
+        advanceAmount,
+        balanceDue,
       };
 
     }, [form]);
@@ -1037,227 +1041,229 @@ const frameProducts =
     };
 
 
- // ===================================================
-// CREATE SALE
-// ===================================================
+  // ===================================================
+  // CREATE SALE
+  // ===================================================
 
-const handleCreateSale =
-  async (
-    event
-  ) => {
+  const handleCreateSale =
+    async (
+      event
+    ) => {
 
-    event.preventDefault();
+      event.preventDefault();
 
-    setError("");
-    setSuccess("");
 
-    // -----------------------------------------------
-    // CUSTOMER IS REQUIRED
-    // -----------------------------------------------
+      setError("");
+      setSuccess("");
 
-    if (
-      !form.customer_id
-    ) {
-
-      setError(
-        "Please select a customer."
-      );
-
-      return;
-    }
-
-    // -----------------------------------------------
-    // LENS IS OPTIONAL
-    // FRAME IS OPTIONAL
-    //
-    // At least ONE billable item must exist.
-    // -----------------------------------------------
-
-    const hasLens =
-      calculation.lensPrice > 0;
-
-    const hasFrame =
-      calculation.framePrice > 0;
-
-    if (
-      !hasLens &&
-      !hasFrame
-    ) {
-
-      setError(
-        "Please enter lens or frame details."
-      );
-
-      return;
-    }
-
-    // -----------------------------------------------
-    // IF PRODUCT FRAME IS SELECTED,
-    // FRAME PRICE MUST BE VALID
-    // -----------------------------------------------
-
-    if (
-      form.frame_product_id &&
-      calculation.framePrice <= 0
-    ) {
-
-      setError(
-        "Invalid frame price."
-      );
-
-      return;
-    }
-
-    // -----------------------------------------------
-    // LENS DETAILS ARE NOT REQUIRED
-    // -----------------------------------------------
-
-    try {
-
-      setSaving(true);
-
-      const payload = {
-
-        customer_id:
-          Number(
-            form.customer_id
-          ),
-
-        eye_test_id:
-          form.eye_test_id
-            ? Number(
-                form.eye_test_id
-              )
-            : null,
-
-        // Lens is completely optional
-        lens_type_id:
-          form.lens_type_id
-            ? Number(
-                form.lens_type_id
-              )
-            : null,
-
-        lens_type_name:
-          form.lens_type_name?.trim() ||
-          null,
-
-        lens_price:
-          calculation.lensPrice,
-
-        // Frame is completely optional
-        frame_product_id:
-          form.frame_product_id
-            ? Number(
-                form.frame_product_id
-              )
-            : null,
-
-        frame_name:
-          form.frame_name?.trim() ||
-          null,
-
-        frame_price:
-          calculation.framePrice,
-
-        discount_percent:
-          calculation.discountPercent,
-
-        gst_enabled:
-          Boolean(
-            form.gst_enabled
-          ),
-
-        gst_percent:
-          form.gst_enabled
-            ? calculation.gstPercent
-            : 0,
-
-        payment_status:
-          form.payment_status,
-
-        payment_method:
-          form.payment_method ||
-          null,
-
-        notes:
-          form.notes?.trim() ||
-          null,
-      };
-
-      const response =
-        await createSale(
-          payload
-        );
 
       if (
-        !response?.success
+        !form.customer_id
       ) {
 
-        throw new Error(
-          response?.message ||
-            "Failed to create sale"
+        setError(
+          "Please select a customer."
         );
+
+        return;
       }
 
-      // ---------------------------------------------
-      // STORE CREATED SALE FOR PRINT
-      // ---------------------------------------------
 
-      const createdSale = {
+      if (
+        calculation.lensPrice <=
+          0 &&
+        calculation.framePrice <=
+          0
+      ) {
 
-        sale:
-          response.sale ||
-          response.data?.sale ||
-          null,
+        setError(
+          "Please enter lens or frame details."
+        );
 
-        items:
-          response.items ||
-          response.data?.items ||
-          [],
+        return;
+      }
 
-        calculation:
-          response.calculation ||
-          response.data?.calculation ||
-          null,
-      };
 
-      setSelectedSale(
-        createdSale
-      );
+      if (
+        form.frame_product_id &&
+        calculation.framePrice <=
+          0
+      ) {
 
-      setShowSaleForm(
-        false
-      );
+        setError(
+          "Invalid frame price."
+        );
 
-      setShowSaleDetails(
-        true
-      );
+        return;
+      }
 
-      setSuccess(
-        response.message ||
-          "Sale created successfully."
-      );
 
-      await loadData();
+      if (
+        calculation.advanceAmount >
+        calculation.grandTotal
+      ) {
+        setError(
+          "Advance amount cannot be greater than grand total."
+        );
+        return;
+      }
 
-    } catch (err) {
+      try {
 
-      console.error(
-        "Create Sale Error:",
-        err
-      );
+        setSaving(true);
 
-      setError(
-        err?.message ||
-          "Unable to create sale."
-      );
 
-    } finally {
+        const payload = {
+          customer_id:
+            Number(
+              form.customer_id
+            ),
 
-      setSaving(false);
-    }
-  };
+          eye_test_id:
+            form.eye_test_id
+              ? Number(
+                  form.eye_test_id
+                )
+              : null,
+
+          lens_type_id:
+            form.lens_type_id
+              ? Number(
+                  form.lens_type_id
+                )
+              : null,
+
+          lens_type_name:
+            form.lens_type_name.trim() ||
+            null,
+
+          lens_price:
+            calculation.lensPrice,
+
+          frame_product_id:
+            form.frame_product_id
+              ? Number(
+                  form.frame_product_id
+                )
+              : null,
+
+          frame_name:
+            form.frame_name.trim() ||
+            null,
+
+          frame_price:
+            calculation.framePrice,
+
+          discount_percent:
+            calculation.discountPercent,
+
+          gst_enabled:
+            Boolean(
+              form.gst_enabled
+            ),
+
+          gst_percent:
+            form.gst_enabled
+              ? calculation.gstPercent
+              : 0,
+
+          advance_amount:
+            calculation.advanceAmount,
+
+          payment_status:
+            form.payment_status,
+
+          payment_method:
+            form.payment_method ||
+            null,
+
+          notes:
+            form.notes.trim() ||
+            null,
+        };
+
+
+        const response =
+          await createSale(
+            payload
+          );
+
+
+        if (
+          !response?.success
+        ) {
+
+          throw new Error(
+            response?.message ||
+              "Failed to create sale"
+          );
+        }
+
+
+        // ---------------------------------------------
+        // STORE CREATED SALE FOR PRINT
+        // ---------------------------------------------
+
+        const createdSale = {
+          sale:
+            response.sale ||
+            response.data?.sale ||
+            null,
+
+          items:
+            response.items ||
+            response.data?.items ||
+            [],
+
+          calculation:
+            response.calculation ||
+            response.data?.calculation ||
+            null,
+        };
+
+
+        setSelectedSale(
+          createdSale
+        );
+
+
+        setShowSaleForm(
+          false
+        );
+
+
+        setShowSaleDetails(
+          true
+        );
+
+
+        setSuccess(
+          response.message ||
+            "Sale created successfully."
+        );
+
+
+        await loadData();
+
+      } catch (err) {
+
+        console.error(
+          "Create Sale Error:",
+          err
+        );
+
+
+        setError(
+          err?.message ||
+            "Unable to create sale."
+        );
+
+      } finally {
+
+        setSaving(false);
+      }
+    };
+
 
   // ===================================================
   // OPEN SALE DETAILS
@@ -1465,6 +1471,19 @@ const handleCreateSale =
         sale.grand_total || 0
       );
 
+
+    const advanceAmount =
+      Number(
+        sale.advance_amount || 0
+      );
+
+    const balanceDue =
+      Math.max(
+        0,
+        Number(
+          (grandTotal - advanceAmount).toFixed(2)
+        )
+      );
 
     const gstEnabled =
       Boolean(
@@ -2016,6 +2035,16 @@ const handleCreateSale =
 
             </div>
 
+            <div class="total-row">
+              <span>Advance Received</span>
+              <strong>-₹${money(advanceAmount)}</strong>
+            </div>
+
+            <div class="total-row grand">
+              <span>Balance Due</span>
+              <strong>₹${money(balanceDue)}</strong>
+            </div>
+
           </div>
 
 
@@ -2042,6 +2071,9 @@ const handleCreateSale =
                 "-"
               }
             </p>
+
+            <p><strong>Advance Received:</strong> ₹${money(advanceAmount)}</p>
+            <p><strong>Balance Due:</strong> ₹${money(balanceDue)}</p>
 
           </div>
 
@@ -3324,10 +3356,28 @@ const handleCreateSale =
                 </div>
 
 
-                <div className="form-grid">
+                <div className="form-grid three">
 
                   <div className="field">
+                    <label>
+                      Advance Received
+                    </label>
+                    <div className="input-with-icon">
+                      <IndianRupee size={17} />
+                      <input
+                        type="number"
+                        min="0"
+                        max={calculation.grandTotal}
+                        step="0.01"
+                        name="advance_amount"
+                        value={form.advance_amount}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
 
+                  <div className="field">
                     <label>
                       Payment Method
                     </label>
@@ -3518,6 +3568,11 @@ const handleCreateSale =
 
                 )}
 
+                <div>
+                  <span>Advance Received</span>
+                  <strong>-₹{money(calculation.advanceAmount)}</strong>
+                </div>
+
 
                 <div className="grand-total-row">
 
@@ -3532,6 +3587,11 @@ const handleCreateSale =
                     )}
                   </strong>
 
+                </div>
+
+                <div className="grand-total-row">
+                  <span>Balance Due</span>
+                  <strong>₹{money(calculation.balanceDue)}</strong>
                 </div>
 
               </section>
@@ -4344,6 +4404,16 @@ const handleCreateSale =
                       )}
                     </strong>
 
+                  </div>
+
+                  <div>
+                    <span>Advance Received</span>
+                    <strong>-₹{money(selectedSale?.sale?.advance_amount)}</strong>
+                  </div>
+
+                  <div className="invoice-grand-total">
+                    <span>Balance Due</span>
+                    <strong>₹{money(Math.max(0, Number(selectedSale?.sale?.grand_total || 0) - Number(selectedSale?.sale?.advance_amount || 0)))}</strong>
                   </div>
 
                 </div>
