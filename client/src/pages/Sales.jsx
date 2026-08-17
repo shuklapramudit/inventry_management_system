@@ -516,34 +516,45 @@ const Sales = () => {
   };
 
 
-  // ===================================================
-  // FRAME PRODUCTS
-  // ===================================================
+ // ===================================================
+// FRAME + SUNGLASSES PRODUCTS
+// ===================================================
+// Existing functionality remains the same.
+// Now both Frame and Sunglasses products are available
+// in the Sales product selector.
+// ===================================================
 
-  const frameProducts =
-    useMemo(() => {
+const frameProducts =
+  useMemo(() => {
 
-      return products.filter(
-        (product) => {
+    return products.filter(
+      (product) => {
 
-          const type =
-            String(
-              product?.product_type ||
-              product?.ProductType ||
-              ""
-            ).toLowerCase();
+        const type =
+          String(
+            product?.product_type ||
+            product?.ProductType ||
+            ""
+          )
+            .trim()
+            .toLowerCase();
 
-          return (
-            type === "frame" &&
-            product?.is_active !== 0 &&
-            getProductStock(
-              product
-            ) > 0
-          );
-        }
-      );
+        return (
+          (
+            type === "frame" ||
+            type === "sunglasses" ||
+            type === "sun-glasses" ||
+            type === "sunglass"
+          ) &&
+          product?.is_active !== 0 &&
+          getProductStock(
+            product
+          ) > 0
+        );
+      }
+    );
 
-    }, [products]);
+  }, [products]);
 
 
   // ===================================================
