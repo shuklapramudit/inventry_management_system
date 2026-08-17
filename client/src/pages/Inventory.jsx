@@ -2,6 +2,12 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import "./Inventory.css";
 
+import {
+  getInventory,
+  addPurchase,
+  adjustStock,
+} from "../services/inventoryService.js";
+
 // =====================================================
 // API
 // =====================================================
@@ -293,22 +299,15 @@ const Inventory = () => {
   // ===================================================
 
   const fetchInventory = async () => {
-    const response = await fetch(`${API}/inventory`, {
-      method: "GET",
-      headers: getHeaders(),
-    });
-
-    const result = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(getErrorMessage(result, "Failed to fetch inventory"));
-    }
+    const result = await getInventory();
 
     const records = Array.isArray(result?.inventory)
       ? result.inventory
       : Array.isArray(result?.data)
         ? result.data
-        : [];
+        : Array.isArray(result)
+          ? result
+          : [];
 
     console.log("Inventory API:", result);
 
@@ -625,17 +624,7 @@ const Inventory = () => {
         notes: purchaseForm.notes.trim() || null,
       };
 
-      const response = await fetch(`${API}/inventory/purchase`, {
-        method: "POST",
-        headers: getHeaders(true),
-        body: JSON.stringify(payload),
-      });
-
-      const result = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(getErrorMessage(result, "Failed to add stock"));
-      }
+      const result = await addPurchase(payload);
 
       setShowPurchaseModal(false);
 
@@ -746,24 +735,13 @@ const Inventory = () => {
     try {
       setSaving(true);
 
-      const response = await fetch(
-        `${API}/inventory/${selectedItem.productId}/adjust`,
+      const result = await adjustStock(
+        selectedItem.productId,
         {
-          method: "PATCH",
-          headers: getHeaders(true),
-          body: JSON.stringify({
-            quantity: adjustment,
-
-            notes: adjustForm.notes.trim() || null,
-          }),
+          quantity: adjustment,
+          notes: adjustForm.notes.trim() || null,
         },
       );
-
-      const result = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(getErrorMessage(result, "Failed to adjust stock"));
-      }
 
       setShowAdjustModal(false);
 
