@@ -3,9 +3,17 @@ node_modules/
 .env
 .env.*
 !.env.example
+
 dist/
 build/
 client/dist/
+
+# Ignore uploaded files by default
 server/uploads/*
+
+# Keep product images in Git
+!server/uploads/
 !server/uploads/products/
-"@ | Set-Content .gitignoregit rm --cached server/.env
+!server/uploads/products/*
+
+"@
