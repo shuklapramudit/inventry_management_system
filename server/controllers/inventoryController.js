@@ -6,58 +6,80 @@ import db from "../config/db.js";
 // GET /api/inventory
 // =====================================================
 
+// =====================================================
+// GET ALL INVENTORY
+// GET /api/inventory
+// =====================================================
+
 export const getInventory = async (
   req,
   res
 ) => {
-
   try {
 
-    const [rows] =
-      await db.query(
-        `
-        SELECT
-          i.id,
-          i.product_id,
+    const [rows] = await db.query(
+      `
+      SELECT
+        i.id,
+        i.product_id,
 
-          p.product_type,
-          p.product_name,
-          p.selling_price,
-          p.product_image,
-          p.shop_location,
-          p.description,
-          p.is_active,
+        p.product_type,
+        p.product_name,
+        p.selling_price,
+        p.product_image,
+        p.shop_location,
+        p.description,
+        p.is_active,
 
-          COALESCE(
-            i.purchased_quantity,
-            0
-          ) AS purchased_quantity,
+        COALESCE(
+          i.purchased_quantity,
+          0
+        ) AS purchased_quantity,
 
-          COALESCE(
-            i.sold_quantity,
-            0
-          ) AS sold_quantity,
+        /*
+        IMPORTANT:
+        Sold quantity is calculated from actual sale_items.
+        Do NOT use inventory.sold_quantity because
+        that value may contain old/wrong data.
+        */
 
-          COALESCE(
-            i.current_stock,
-            0
-          ) AS current_stock,
+        COALESCE(
+          (
+            SELECT SUM(si.quantity)
+            FROM sale_items si
+            INNER JOIN sales s
+              ON s.id = si.sale_id
+            WHERE
+              si.product_id = i.product_id
+          ),
+          0
+        ) AS sold_quantity,
 
+        COALESCE(
+          i.current_stock,
+          0
+        ) AS current_stock,
+
+        COALESCE(
           i.low_stock_limit,
-          i.updated_at
+          5
+        ) AS low_stock_limit,
 
-        FROM inventory i
+        i.updated_at
 
-        INNER JOIN products p
-          ON p.id = i.product_id
+      FROM inventory i
 
-        WHERE p.is_active = 1
+      INNER JOIN products p
+        ON p.id = i.product_id
 
-        ORDER BY
-          i.current_stock ASC,
-          p.product_name ASC
-        `
-      );
+      WHERE
+        p.is_active = 1
+
+      ORDER BY
+        i.current_stock ASC,
+        p.product_name ASC
+      `
+    );
 
 
     const inventory =
@@ -67,7 +89,9 @@ export const getInventory = async (
           ...item,
 
           id:
-            Number(item.id),
+            Number(
+              item.id
+            ),
 
           product_id:
             Number(
@@ -81,26 +105,22 @@ export const getInventory = async (
 
           purchased_quantity:
             Number(
-              item.purchased_quantity ||
-              0
+              item.purchased_quantity || 0
             ),
 
           sold_quantity:
             Number(
-              item.sold_quantity ||
-              0
+              item.sold_quantity || 0
             ),
 
           current_stock:
             Number(
-              item.current_stock ||
-              0
+              item.current_stock || 0
             ),
 
           low_stock_limit:
             Number(
-              item.low_stock_limit ||
-              5
+              item.low_stock_limit || 5
             ),
 
         })
