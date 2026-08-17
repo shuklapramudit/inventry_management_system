@@ -1767,9 +1767,9 @@ const Inventory = () => {
                       sold
                     </th>
 
-                    <th>
+                    {/* <th>
                       Min Stock
-                    </th>
+                    </th> */}
 
                     <th>
                       Status
@@ -1944,9 +1944,9 @@ const Inventory = () => {
 
                           {/* MIN */}
 
-                          <td>
+                          {/* <td>
                             {item.lowStockLimit}
-                          </td>
+                          </td> */}
 
 
                           {/* STATUS */}
