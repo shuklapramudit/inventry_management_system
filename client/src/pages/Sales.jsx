@@ -1037,216 +1037,227 @@ const frameProducts =
     };
 
 
-  // ===================================================
-  // CREATE SALE
-  // ===================================================
+ // ===================================================
+// CREATE SALE
+// ===================================================
 
-  const handleCreateSale =
-    async (
-      event
-    ) => {
+const handleCreateSale =
+  async (
+    event
+  ) => {
 
-      event.preventDefault();
+    event.preventDefault();
 
+    setError("");
+    setSuccess("");
 
-      setError("");
-      setSuccess("");
+    // -----------------------------------------------
+    // CUSTOMER IS REQUIRED
+    // -----------------------------------------------
 
+    if (
+      !form.customer_id
+    ) {
 
-      if (
-        !form.customer_id
-      ) {
+      setError(
+        "Please select a customer."
+      );
 
-        setError(
-          "Please select a customer."
-        );
+      return;
+    }
 
-        return;
-      }
+    // -----------------------------------------------
+    // LENS IS OPTIONAL
+    // FRAME IS OPTIONAL
+    //
+    // At least ONE billable item must exist.
+    // -----------------------------------------------
 
+    const hasLens =
+      calculation.lensPrice > 0;
 
-      if (
-        calculation.lensPrice <=
-          0 &&
-        calculation.framePrice <=
-          0
-      ) {
+    const hasFrame =
+      calculation.framePrice > 0;
 
-        setError(
-          "Please enter lens or frame details."
-        );
+    if (
+      !hasLens &&
+      !hasFrame
+    ) {
 
-        return;
-      }
+      setError(
+        "Please enter lens or frame details."
+      );
 
+      return;
+    }
 
-      if (
-        form.frame_product_id &&
-        calculation.framePrice <=
-          0
-      ) {
+    // -----------------------------------------------
+    // IF PRODUCT FRAME IS SELECTED,
+    // FRAME PRICE MUST BE VALID
+    // -----------------------------------------------
 
-        setError(
-          "Invalid frame price."
-        );
+    if (
+      form.frame_product_id &&
+      calculation.framePrice <= 0
+    ) {
 
-        return;
-      }
+      setError(
+        "Invalid frame price."
+      );
 
+      return;
+    }
 
-      try {
+    // -----------------------------------------------
+    // LENS DETAILS ARE NOT REQUIRED
+    // -----------------------------------------------
 
-        setSaving(true);
+    try {
 
+      setSaving(true);
 
-        const payload = {
-          customer_id:
-            Number(
-              form.customer_id
-            ),
+      const payload = {
 
-          eye_test_id:
-            form.eye_test_id
-              ? Number(
-                  form.eye_test_id
-                )
-              : null,
+        customer_id:
+          Number(
+            form.customer_id
+          ),
 
-          lens_type_id:
-            form.lens_type_id
-              ? Number(
-                  form.lens_type_id
-                )
-              : null,
+        eye_test_id:
+          form.eye_test_id
+            ? Number(
+                form.eye_test_id
+              )
+            : null,
 
-          lens_type_name:
-            form.lens_type_name.trim() ||
-            null,
+        // Lens is completely optional
+        lens_type_id:
+          form.lens_type_id
+            ? Number(
+                form.lens_type_id
+              )
+            : null,
 
-          lens_price:
-            calculation.lensPrice,
+        lens_type_name:
+          form.lens_type_name?.trim() ||
+          null,
 
-          frame_product_id:
-            form.frame_product_id
-              ? Number(
-                  form.frame_product_id
-                )
-              : null,
+        lens_price:
+          calculation.lensPrice,
 
-          frame_name:
-            form.frame_name.trim() ||
-            null,
+        // Frame is completely optional
+        frame_product_id:
+          form.frame_product_id
+            ? Number(
+                form.frame_product_id
+              )
+            : null,
 
-          frame_price:
-            calculation.framePrice,
+        frame_name:
+          form.frame_name?.trim() ||
+          null,
 
-          discount_percent:
-            calculation.discountPercent,
+        frame_price:
+          calculation.framePrice,
 
-          gst_enabled:
-            Boolean(
-              form.gst_enabled
-            ),
+        discount_percent:
+          calculation.discountPercent,
 
-          gst_percent:
+        gst_enabled:
+          Boolean(
             form.gst_enabled
-              ? calculation.gstPercent
-              : 0,
+          ),
 
-          payment_status:
-            form.payment_status,
+        gst_percent:
+          form.gst_enabled
+            ? calculation.gstPercent
+            : 0,
 
-          payment_method:
-            form.payment_method ||
-            null,
+        payment_status:
+          form.payment_status,
 
-          notes:
-            form.notes.trim() ||
-            null,
-        };
+        payment_method:
+          form.payment_method ||
+          null,
 
+        notes:
+          form.notes?.trim() ||
+          null,
+      };
 
-        const response =
-          await createSale(
-            payload
-          );
-
-
-        if (
-          !response?.success
-        ) {
-
-          throw new Error(
-            response?.message ||
-              "Failed to create sale"
-          );
-        }
-
-
-        // ---------------------------------------------
-        // STORE CREATED SALE FOR PRINT
-        // ---------------------------------------------
-
-        const createdSale = {
-          sale:
-            response.sale ||
-            response.data?.sale ||
-            null,
-
-          items:
-            response.items ||
-            response.data?.items ||
-            [],
-
-          calculation:
-            response.calculation ||
-            response.data?.calculation ||
-            null,
-        };
-
-
-        setSelectedSale(
-          createdSale
+      const response =
+        await createSale(
+          payload
         );
 
+      if (
+        !response?.success
+      ) {
 
-        setShowSaleForm(
-          false
+        throw new Error(
+          response?.message ||
+            "Failed to create sale"
         );
-
-
-        setShowSaleDetails(
-          true
-        );
-
-
-        setSuccess(
-          response.message ||
-            "Sale created successfully."
-        );
-
-
-        await loadData();
-
-      } catch (err) {
-
-        console.error(
-          "Create Sale Error:",
-          err
-        );
-
-
-        setError(
-          err?.message ||
-            "Unable to create sale."
-        );
-
-      } finally {
-
-        setSaving(false);
       }
-    };
 
+      // ---------------------------------------------
+      // STORE CREATED SALE FOR PRINT
+      // ---------------------------------------------
+
+      const createdSale = {
+
+        sale:
+          response.sale ||
+          response.data?.sale ||
+          null,
+
+        items:
+          response.items ||
+          response.data?.items ||
+          [],
+
+        calculation:
+          response.calculation ||
+          response.data?.calculation ||
+          null,
+      };
+
+      setSelectedSale(
+        createdSale
+      );
+
+      setShowSaleForm(
+        false
+      );
+
+      setShowSaleDetails(
+        true
+      );
+
+      setSuccess(
+        response.message ||
+          "Sale created successfully."
+      );
+
+      await loadData();
+
+    } catch (err) {
+
+      console.error(
+        "Create Sale Error:",
+        err
+      );
+
+      setError(
+        err?.message ||
+          "Unable to create sale."
+      );
+
+    } finally {
+
+      setSaving(false);
+    }
+  };
 
   // ===================================================
   // OPEN SALE DETAILS

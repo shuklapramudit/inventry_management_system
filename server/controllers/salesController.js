@@ -24,9 +24,11 @@ const normalizePaymentStatus = (value) => {
     .toUpperCase();
 
   if (
-    ["PENDING", "PAID", "PARTIAL"].includes(
-      status
-    )
+    [
+      "PENDING",
+      "PAID",
+      "PARTIAL",
+    ].includes(status)
   ) {
     return status;
   }
@@ -38,7 +40,10 @@ const normalizePaymentStatus = (value) => {
 // SAFE NUMBER
 // =====================================================
 
-const toNumber = (value, fallback = 0) => {
+const toNumber = (
+  value,
+  fallback = 0
+) => {
   if (
     value === null ||
     value === undefined ||
@@ -55,6 +60,24 @@ const toNumber = (value, fallback = 0) => {
 };
 
 // =====================================================
+// PRODUCT TYPES ALLOWED FOR SALES
+// =====================================================
+//
+// Existing frontend uses frame_product_id.
+// We keep that field unchanged so current frontend
+// functionality does not break.
+//
+// Both Frame and Sunglass are allowed.
+//
+// =====================================================
+
+const SALES_PRODUCT_TYPES = [
+  "Frame",
+  "Sunglass",
+  "Sunglasses",
+];
+
+// =====================================================
 // GET SALES CUSTOMERS
 // GET /api/sales/customers
 // =====================================================
@@ -64,14 +87,17 @@ export const getSalesCustomers = async (
   res
 ) => {
   try {
-    const [customers] = await db.query(`
-      SELECT
-        id,
-        name,
-        mobile
-      FROM customers
-      ORDER BY name ASC
-    `);
+    const [customers] =
+      await db.query(
+        `
+        SELECT
+          id,
+          name,
+          mobile
+        FROM customers
+        ORDER BY name ASC
+        `
+      );
 
     return res.status(200).json({
       success: true,
@@ -86,11 +112,13 @@ export const getSalesCustomers = async (
 
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch customers",
+      message:
+        "Failed to fetch customers",
       error: error.message,
       sqlMessage:
         error.sqlMessage || null,
-      code: error.code || null,
+      code:
+        error.code || null,
     });
   }
 };
@@ -100,239 +128,223 @@ export const getSalesCustomers = async (
 // GET /api/sales/customer/:customerId
 // =====================================================
 
-export const getCustomerSalesInfo = async (
-  req,
-  res
-) => {
-  try {
+export const getCustomerSalesInfo =
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const customerId =
+        Number(
+          req.params.customerId
+        );
 
-    const customerId =
-      Number(req.params.customerId);
+      // =================================================
+      // VALIDATE CUSTOMER ID
+      // =================================================
 
+      if (
+        !Number.isInteger(
+          customerId
+        ) ||
+        customerId <= 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid customer ID",
+        });
+      }
 
-    // =================================================
-    // VALIDATE CUSTOMER ID
-    // =================================================
+      // =================================================
+      // CUSTOMER
+      // =================================================
 
-    if (
-      !Number.isInteger(customerId) ||
-      customerId <= 0
-    ) {
-      return res.status(400).json({
+      const [customers] =
+        await db.query(
+          `
+          SELECT
+            id,
+            name,
+            mobile,
+            email,
+            address,
+            city,
+            state,
+            pincode
+          FROM customers
+          WHERE id = ?
+          LIMIT 1
+          `,
+          [customerId]
+        );
+
+      if (
+        customers.length === 0
+      ) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Customer not found",
+        });
+      }
+
+      // =================================================
+      // LATEST EYE TEST
+      // =================================================
+
+      const [eyeTests] =
+        await db.query(
+          `
+          SELECT
+            et.id,
+            et.customer_id,
+
+            et.right_sph,
+            et.right_cyl,
+            et.right_axis,
+            et.right_add,
+            et.right_pd,
+
+            et.left_sph,
+            et.left_cyl,
+            et.left_axis,
+            et.left_add,
+            et.left_pd,
+
+            et.lens_type_id,
+
+            COALESCE(
+              lt.name,
+              et.lens_type_name
+            ) AS lens_type,
+
+            et.lens_type_name,
+            et.lens_price,
+
+            et.frame_product_id,
+            et.frame_name,
+            et.frame_price,
+
+            et.test_date
+
+          FROM eye_tests et
+
+          LEFT JOIN lens_types lt
+            ON et.lens_type_id = lt.id
+
+          WHERE et.customer_id = ?
+
+          ORDER BY
+            et.test_date DESC,
+            et.id DESC
+
+          LIMIT 1
+          `,
+          [customerId]
+        );
+
+      // =================================================
+      // AVAILABLE PRODUCTS
+      // =================================================
+      //
+      // IMPORTANT:
+      // Previously only Frame was allowed.
+      //
+      // Now Frame + Sunglass are returned.
+      //
+      // We keep response key "frames" so existing
+      // frontend styling/functionality remains compatible.
+      //
+      // =================================================
+
+      const [frames] =
+        await db.query(
+          `
+          SELECT
+            p.id,
+            p.product_type,
+            p.product_name,
+            p.selling_price,
+            p.product_image,
+            p.shop_location,
+            p.description,
+
+            COALESCE(
+              i.current_stock,
+              0
+            ) AS current_stock,
+
+            COALESCE(
+              i.low_stock_limit,
+              0
+            ) AS low_stock_limit
+
+          FROM products p
+
+          LEFT JOIN inventory i
+            ON p.id = i.product_id
+
+          WHERE
+            LOWER(
+              TRIM(
+                p.product_type
+              )
+            ) IN (
+              'frame',
+              'sunglass',
+              'sunglasses'
+            )
+
+            AND p.is_active = TRUE
+
+            AND COALESCE(
+              i.current_stock,
+              0
+            ) > 0
+
+          ORDER BY
+            p.product_type ASC,
+            p.product_name ASC
+          `
+        );
+
+      // =================================================
+      // RESPONSE
+      // =================================================
+
+      return res.status(200).json({
+        success: true,
+
+        customer:
+          customers[0],
+
+        latestEyeTest:
+          eyeTests.length > 0
+            ? eyeTests[0]
+            : null,
+
+        frames,
+      });
+    } catch (error) {
+      console.error(
+        "Customer Sales Info Error:",
+        error
+      );
+
+      return res.status(500).json({
         success: false,
-        message: "Invalid customer ID",
+        message:
+          "Failed to fetch customer sales information",
+        error:
+          error.message,
+        sqlMessage:
+          error.sqlMessage || null,
+        code:
+          error.code || null,
       });
     }
-
-
-    // =================================================
-    // CUSTOMER
-    // IMPORTANT:
-    // Your customers table uses:
-    // id / name / mobile
-    // =================================================
-
-    const [customers] =
-      await db.query(
-        `
-        SELECT
-          id,
-          name,
-          mobile,
-          email,
-          address,
-          city,
-          state,
-          pincode
-
-        FROM customers
-
-        WHERE id = ?
-
-        LIMIT 1
-        `,
-        [customerId]
-      );
-
-
-    if (
-      customers.length === 0
-    ) {
-      return res.status(404).json({
-        success: false,
-        message: "Customer not found",
-      });
-    }
-
-
-    // =================================================
-    // LATEST EYE TEST
-    //
-    // IMPORTANT:
-    // Include COMPLETE RIGHT + LEFT POWER
-    // =================================================
-
-    const [eyeTests] =
-      await db.query(
-        `
-        SELECT
-
-          et.id,
-          et.customer_id,
-
-          // -------------------------------------------
-          // RIGHT EYE
-          // -------------------------------------------
-
-          et.right_sph,
-          et.right_cyl,
-          et.right_axis,
-          et.right_add,
-          et.right_pd,
-
-          // -------------------------------------------
-          // LEFT EYE
-          // -------------------------------------------
-
-          et.left_sph,
-          et.left_cyl,
-          et.left_axis,
-          et.left_add,
-          et.left_pd,
-
-          // -------------------------------------------
-          // LENS
-          // -------------------------------------------
-
-          et.lens_type_id,
-
-          COALESCE(
-            lt.name,
-            et.lens_type_name
-          ) AS lens_type,
-
-          et.lens_type_name,
-          et.lens_price,
-
-          // -------------------------------------------
-          // FRAME
-          // -------------------------------------------
-
-          et.frame_product_id,
-          et.frame_name,
-          et.frame_price,
-
-          // -------------------------------------------
-          // DATE
-          // -------------------------------------------
-
-          et.test_date
-
-        FROM eye_tests et
-
-        LEFT JOIN lens_types lt
-          ON et.lens_type_id = lt.id
-
-        WHERE et.customer_id = ?
-
-        ORDER BY
-          et.test_date DESC,
-          et.id DESC
-
-        LIMIT 1
-        `,
-        [customerId]
-      );
-
-
-    // =================================================
-    // AVAILABLE FRAMES
-    // =================================================
-
-    const [frames] =
-      await db.query(
-        `
-        SELECT
-
-          p.id,
-          p.product_type,
-          p.product_name,
-          p.selling_price,
-          p.product_image,
-          p.shop_location,
-          p.description,
-
-          COALESCE(
-            i.current_stock,
-            0
-          ) AS current_stock,
-
-          COALESCE(
-            i.low_stock_limit,
-            0
-          ) AS low_stock_limit
-
-        FROM products p
-
-        LEFT JOIN inventory i
-          ON p.id = i.product_id
-
-        WHERE
-          p.product_type = 'Frame'
-
-          AND p.is_active = TRUE
-
-          AND COALESCE(
-            i.current_stock,
-            0
-          ) > 0
-
-        ORDER BY
-          p.product_name ASC
-        `
-      );
-
-
-    // =================================================
-    // RESPONSE
-    // =================================================
-
-    return res.status(200).json({
-
-      success: true,
-
-      customer:
-        customers[0],
-
-      latestEyeTest:
-        eyeTests.length > 0
-          ? eyeTests[0]
-          : null,
-
-      frames,
-
-    });
-
-  } catch (error) {
-
-    console.error(
-      "Customer Sales Info Error:",
-      error
-    );
-
-    return res.status(500).json({
-
-      success: false,
-
-      message:
-        "Failed to fetch customer sales information",
-
-      error:
-        error.message,
-
-    });
-  }
-};
+  };
 
 // =====================================================
 // CREATE SALE
@@ -438,7 +450,9 @@ export const createSale = async (
     if (
       gstEnabled &&
       (
-        !Number.isFinite(gst) ||
+        !Number.isFinite(
+          gst
+        ) ||
         gst < 0 ||
         gst > 100
       )
@@ -500,7 +514,7 @@ export const createSale = async (
       );
 
     // =================================================
-    // IDs
+    // IDS
     // =================================================
 
     const finalEyeTestId =
@@ -510,12 +524,16 @@ export const createSale = async (
 
     const frameProductId =
       frame_product_id
-        ? Number(frame_product_id)
+        ? Number(
+            frame_product_id
+          )
         : null;
 
     const finalLensTypeId =
       lens_type_id
-        ? Number(lens_type_id)
+        ? Number(
+            lens_type_id
+          )
         : null;
 
     // =================================================
@@ -559,7 +577,7 @@ export const createSale = async (
     }
 
     // =================================================
-    // VALIDATE FRAME PRODUCT ID
+    // VALIDATE PRODUCT ID
     // =================================================
 
     if (
@@ -574,7 +592,7 @@ export const createSale = async (
       return res.status(400).json({
         success: false,
         message:
-          "Invalid frame product ID",
+          "Invalid product ID",
       });
     }
 
@@ -586,9 +604,6 @@ export const createSale = async (
 
     // =================================================
     // CUSTOMER CHECK
-    // IMPORTANT:
-    // Actual DB columns are:
-    // id / name / mobile
     // =================================================
 
     const [customers] =
@@ -598,11 +613,8 @@ export const createSale = async (
           id,
           name,
           mobile
-
         FROM customers
-
         WHERE id = ?
-
         LIMIT 1
         `,
         [customerId]
@@ -650,11 +662,8 @@ export const createSale = async (
             frame_product_id,
             frame_name,
             frame_price
-
           FROM eye_tests
-
           WHERE id = ?
-
           LIMIT 1
           `,
           [finalEyeTestId]
@@ -709,11 +718,8 @@ export const createSale = async (
           SELECT
             id,
             name
-
           FROM lens_types
-
           WHERE id = ?
-
           LIMIT 1
           `,
           [finalLensTypeId]
@@ -740,7 +746,7 @@ export const createSale = async (
     }
 
     // =================================================
-    // FRAME INFORMATION
+    // PRODUCT INFORMATION
     // =================================================
 
     let finalFrameName =
@@ -750,18 +756,22 @@ export const createSale = async (
           ).trim()
         : null;
 
+    let selectedProductType =
+      null;
+
     // =================================================
-    // REAL PRODUCT FRAME
+    // REAL PRODUCT
     // =================================================
 
     if (
       frameProductId !== null
     ) {
-      const [frames] =
+      const [products] =
         await connection.query(
           `
           SELECT
             p.id,
+            p.product_type,
             p.product_name,
             p.selling_price,
             p.product_image,
@@ -779,7 +789,15 @@ export const createSale = async (
           WHERE
             p.id = ?
 
-            AND p.product_type = 'Frame'
+            AND LOWER(
+              TRIM(
+                p.product_type
+              )
+            ) IN (
+              'frame',
+              'sunglass',
+              'sunglasses'
+            )
 
             AND p.is_active = TRUE
 
@@ -791,27 +809,30 @@ export const createSale = async (
         );
 
       if (
-        frames.length === 0
+        products.length === 0
       ) {
         await connection.rollback();
 
         return res.status(404).json({
           success: false,
           message:
-            "Selected frame not found",
+            "Selected product not found",
         });
       }
 
-      const frame =
-        frames[0];
+      const product =
+        products[0];
 
-      // -----------------------------------------------
+      selectedProductType =
+        product.product_type;
+
+      // =================================================
       // STOCK CHECK
-      // -----------------------------------------------
+      // =================================================
 
       if (
         Number(
-          frame.current_stock
+          product.current_stock
         ) < 1
       ) {
         await connection.rollback();
@@ -819,21 +840,21 @@ export const createSale = async (
         return res.status(400).json({
           success: false,
           message:
-            "Selected frame is out of stock",
+            "Selected product is out of stock",
         });
       }
 
-      // -----------------------------------------------
+      // =================================================
       // ALWAYS USE PRODUCT PRICE
-      // -----------------------------------------------
+      // =================================================
 
       framePrice =
         toNumber(
-          frame.selling_price
+          product.selling_price
         );
 
       finalFrameName =
-        frame.product_name;
+        product.product_name;
     }
 
     // =================================================
@@ -1000,9 +1021,7 @@ export const createSale = async (
     const saleId =
       saleResult.insertId;
 
-    if (
-      !saleId
-    ) {
+    if (!saleId) {
       throw new Error(
         "Sale could not be created"
       );
@@ -1053,7 +1072,14 @@ export const createSale = async (
     }
 
     // =================================================
-    // FRAME SALE ITEM
+    // PRODUCT SALE ITEM
+    // =================================================
+    //
+    // We keep item_type = FRAME so the existing
+    // frontend/database functionality remains compatible.
+    //
+    // It can now represent Frame OR Sunglass.
+    //
     // =================================================
 
     if (
@@ -1099,7 +1125,7 @@ export const createSale = async (
     }
 
     // =================================================
-    // REDUCE REAL FRAME STOCK
+    // REDUCE REAL PRODUCT STOCK
     // =================================================
 
     if (
@@ -1137,13 +1163,13 @@ export const createSale = async (
         return res.status(400).json({
           success: false,
           message:
-            "Unable to reduce frame stock",
+            "Unable to reduce product stock",
         });
       }
 
-      // -----------------------------------------------
+      // =================================================
       // INVENTORY MOVEMENT
-      // -----------------------------------------------
+      // =================================================
 
       try {
         await connection.query(
@@ -1170,8 +1196,12 @@ export const createSale = async (
           `,
           [
             frameProductId,
+
             saleId,
-            "Frame sold",
+
+            selectedProductType
+              ? `${selectedProductType} sold`
+              : "Product sold",
           ]
         );
       } catch (
@@ -1192,9 +1222,6 @@ export const createSale = async (
 
     // =================================================
     // FETCH CREATED SALE
-    // IMPORTANT:
-    // Actual customer columns are:
-    // id / name / mobile
     // =================================================
 
     const [saleRows] =
@@ -1445,7 +1472,10 @@ export const getSales = async (
 // =====================================================
 
 export const getSaleById =
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const saleId =
         Number(
@@ -1585,7 +1615,10 @@ export const getSaleById =
 // =====================================================
 
 export const updatePaymentStatus =
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const saleId =
         Number(
