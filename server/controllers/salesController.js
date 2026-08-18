@@ -19,9 +19,7 @@ const ALLOWED_DISCOUNTS = [
 // =====================================================
 
 const normalizePaymentStatus = (value) => {
-  const status = String(
-    value || "PENDING"
-  )
+  const status = String(value || "PENDING")
     .trim()
     .toUpperCase();
 
@@ -62,6 +60,16 @@ const toNumber = (
 };
 
 // =====================================================
+// PRODUCT TYPES ALLOWED FOR SALES
+// =====================================================
+
+const SALES_PRODUCT_TYPES = [
+  "Frame",
+  "Sunglass",
+  "Sunglasses",
+];
+
+// =====================================================
 // GET SALES CUSTOMERS
 // GET /api/sales/customers
 // =====================================================
@@ -72,14 +80,16 @@ export const getSalesCustomers = async (
 ) => {
   try {
     const [customers] =
-      await db.query(`
+      await db.query(
+        `
         SELECT
           id,
           name,
           mobile
         FROM customers
         ORDER BY name ASC
-      `);
+        `
+      );
 
     return res.status(200).json({
       success: true,
@@ -122,9 +132,9 @@ export const getCustomerSalesInfo =
           req.params.customerId
         );
 
-      // -------------------------------------------------
-      // VALIDATE CUSTOMER
-      // -------------------------------------------------
+      // =================================================
+      // VALIDATE CUSTOMER ID
+      // =================================================
 
       if (
         !Number.isInteger(
@@ -139,9 +149,9 @@ export const getCustomerSalesInfo =
         });
       }
 
-      // -------------------------------------------------
+      // =================================================
       // CUSTOMER
-      // -------------------------------------------------
+      // =================================================
 
       const [customers] =
         await db.query(
@@ -172,15 +182,14 @@ export const getCustomerSalesInfo =
         });
       }
 
-      // -------------------------------------------------
+      // =================================================
       // LATEST EYE TEST
-      // -------------------------------------------------
+      // =================================================
 
       const [eyeTests] =
         await db.query(
           `
           SELECT
-
             et.id,
             et.customer_id,
 
@@ -215,8 +224,7 @@ export const getCustomerSalesInfo =
           FROM eye_tests et
 
           LEFT JOIN lens_types lt
-            ON et.lens_type_id =
-               lt.id
+            ON et.lens_type_id = lt.id
 
           WHERE et.customer_id = ?
 
@@ -229,15 +237,14 @@ export const getCustomerSalesInfo =
           [customerId]
         );
 
-      // -------------------------------------------------
+      // =================================================
       // AVAILABLE PRODUCTS
-      // -------------------------------------------------
+      // =================================================
 
       const [frames] =
         await db.query(
           `
           SELECT
-
             p.id,
             p.product_type,
             p.product_name,
@@ -259,13 +266,17 @@ export const getCustomerSalesInfo =
           FROM products p
 
           LEFT JOIN inventory i
-            ON p.id =
-               i.product_id
+            ON p.id = i.product_id
 
           WHERE
-            p.product_type IN (
-              'Frame',
-              'Sunglass'
+            LOWER(
+              TRIM(
+                p.product_type
+              )
+            ) IN (
+              'frame',
+              'sunglass',
+              'sunglasses'
             )
 
             AND p.is_active = TRUE
@@ -276,13 +287,14 @@ export const getCustomerSalesInfo =
             ) > 0
 
           ORDER BY
+            p.product_type ASC,
             p.product_name ASC
           `
         );
 
-      // -------------------------------------------------
+      // =================================================
       // RESPONSE
-      // -------------------------------------------------
+      // =================================================
 
       return res.status(200).json({
         success: true,
@@ -309,6 +321,10 @@ export const getCustomerSalesInfo =
           "Failed to fetch customer sales information",
         error:
           error.message,
+        sqlMessage:
+          error.sqlMessage || null,
+        code:
+          error.code || null,
       });
     }
   };
@@ -325,16 +341,16 @@ export const createSale = async (
   let connection = null;
 
   try {
-    // -------------------------------------------------
-    // CONNECTION
-    // -------------------------------------------------
+    // =================================================
+    // GET CONNECTION
+    // =================================================
 
     connection =
       await db.getConnection();
 
-    // -------------------------------------------------
+    // =================================================
     // REQUEST DATA
-    // -------------------------------------------------
+    // =================================================
 
     const {
       customer_id,
@@ -353,20 +369,17 @@ export const createSale = async (
       gst_enabled = false,
       gst_percent = 0,
 
-      // NEW
       advance_amount = 0,
 
-      payment_status =
-        "PENDING",
-
+      payment_status = "PENDING",
       payment_method,
 
       notes,
     } = req.body;
 
-    // -------------------------------------------------
-    // CUSTOMER
-    // -------------------------------------------------
+    // =================================================
+    // CUSTOMER ID
+    // =================================================
 
     const customerId =
       Number(customer_id);
@@ -384,9 +397,9 @@ export const createSale = async (
       });
     }
 
-    // -------------------------------------------------
+    // =================================================
     // DISCOUNT
-    // -------------------------------------------------
+    // =================================================
 
     const discount =
       toNumber(
@@ -405,9 +418,9 @@ export const createSale = async (
       });
     }
 
-    // -------------------------------------------------
+    // =================================================
     // GST
-    // -------------------------------------------------
+    // =================================================
 
     const gstEnabled =
       gst_enabled === true ||
@@ -422,9 +435,7 @@ export const createSale = async (
     if (
       gstEnabled &&
       (
-        !Number.isFinite(
-          gst
-        ) ||
+        !Number.isFinite(gst) ||
         gst < 0 ||
         gst > 100
       )
@@ -436,9 +447,9 @@ export const createSale = async (
       });
     }
 
-    // -------------------------------------------------
+    // =================================================
     // PRICES
-    // -------------------------------------------------
+    // =================================================
 
     let lensPrice =
       toNumber(
@@ -476,9 +487,9 @@ export const createSale = async (
       });
     }
 
-    // -------------------------------------------------
+    // =================================================
     // IDS
-    // -------------------------------------------------
+    // =================================================
 
     const finalEyeTestId =
       eye_test_id
@@ -501,9 +512,9 @@ export const createSale = async (
           )
         : null;
 
-    // -------------------------------------------------
+    // =================================================
     // VALIDATE EYE TEST ID
-    // -------------------------------------------------
+    // =================================================
 
     if (
       finalEyeTestId !== null &&
@@ -521,9 +532,9 @@ export const createSale = async (
       });
     }
 
-    // -------------------------------------------------
+    // =================================================
     // VALIDATE LENS TYPE ID
-    // -------------------------------------------------
+    // =================================================
 
     if (
       finalLensTypeId !== null &&
@@ -541,9 +552,9 @@ export const createSale = async (
       });
     }
 
-    // -------------------------------------------------
-    // VALIDATE FRAME PRODUCT ID
-    // -------------------------------------------------
+    // =================================================
+    // VALIDATE PRODUCT ID
+    // =================================================
 
     if (
       frameProductId !== null &&
@@ -557,19 +568,19 @@ export const createSale = async (
       return res.status(400).json({
         success: false,
         message:
-          "Invalid frame product ID",
+          "Invalid product ID",
       });
     }
 
-    // -------------------------------------------------
+    // =================================================
     // START TRANSACTION
-    // -------------------------------------------------
+    // =================================================
 
     await connection.beginTransaction();
 
-    // -------------------------------------------------
+    // =================================================
     // CUSTOMER CHECK
-    // -------------------------------------------------
+    // =================================================
 
     const [customers] =
       await connection.query(
@@ -597,9 +608,9 @@ export const createSale = async (
       });
     }
 
-    // -------------------------------------------------
+    // =================================================
     // LENS INFORMATION
-    // -------------------------------------------------
+    // =================================================
 
     let finalLensName =
       lens_type_name
@@ -608,9 +619,9 @@ export const createSale = async (
           ).trim()
         : null;
 
-    // -------------------------------------------------
+    // =================================================
     // EYE TEST CHECK
-    // -------------------------------------------------
+    // =================================================
 
     if (
       finalEyeTestId !== null
@@ -619,7 +630,6 @@ export const createSale = async (
         await connection.query(
           `
           SELECT
-
             id,
             customer_id,
             lens_type_id,
@@ -652,8 +662,7 @@ export const createSale = async (
 
       if (
         Number(
-          eyeTests[0]
-            .customer_id
+          eyeTests[0].customer_id
         ) !== customerId
       ) {
         await connection.rollback();
@@ -675,9 +684,9 @@ export const createSale = async (
       }
     }
 
-    // -------------------------------------------------
+    // =================================================
     // LENS TYPE CHECK
-    // -------------------------------------------------
+    // =================================================
 
     if (
       finalLensTypeId !== null
@@ -715,9 +724,9 @@ export const createSale = async (
       }
     }
 
-    // -------------------------------------------------
-    // FRAME INFORMATION
-    // -------------------------------------------------
+    // =================================================
+    // PRODUCT INFORMATION
+    // =================================================
 
     let finalFrameName =
       frame_name
@@ -726,19 +735,22 @@ export const createSale = async (
           ).trim()
         : null;
 
-    // -------------------------------------------------
+    let selectedProductType =
+      null;
+
+    // =================================================
     // REAL PRODUCT
-    // -------------------------------------------------
+    // =================================================
 
     if (
       frameProductId !== null
     ) {
-      const [frames] =
+      const [products] =
         await connection.query(
           `
           SELECT
-
             p.id,
+            p.product_type,
             p.product_name,
             p.selling_price,
             p.product_image,
@@ -751,15 +763,19 @@ export const createSale = async (
           FROM products p
 
           LEFT JOIN inventory i
-            ON p.id =
-               i.product_id
+            ON p.id = i.product_id
 
           WHERE
             p.id = ?
 
-            AND p.product_type IN (
-              'Frame',
-              'Sunglass'
+            AND LOWER(
+              TRIM(
+                p.product_type
+              )
+            ) IN (
+              'frame',
+              'sunglass',
+              'sunglasses'
             )
 
             AND p.is_active = TRUE
@@ -772,7 +788,7 @@ export const createSale = async (
         );
 
       if (
-        frames.length === 0
+        products.length === 0
       ) {
         await connection.rollback();
 
@@ -783,16 +799,19 @@ export const createSale = async (
         });
       }
 
-      const frame =
-        frames[0];
+      const product =
+        products[0];
 
-      // -------------------------------------------------
+      selectedProductType =
+        product.product_type;
+
+      // =================================================
       // STOCK CHECK
-      // -------------------------------------------------
+      // =================================================
 
       if (
         Number(
-          frame.current_stock
+          product.current_stock
         ) < 1
       ) {
         await connection.rollback();
@@ -800,26 +819,26 @@ export const createSale = async (
         return res.status(400).json({
           success: false,
           message:
-            "Selected frame is out of stock",
+            "Selected product is out of stock",
         });
       }
 
-      // -------------------------------------------------
+      // =================================================
       // ALWAYS USE PRODUCT PRICE
-      // -------------------------------------------------
+      // =================================================
 
       framePrice =
         toNumber(
-          frame.selling_price
+          product.selling_price
         );
 
       finalFrameName =
-        frame.product_name;
+        product.product_name;
     }
 
-    // -------------------------------------------------
+    // =================================================
     // MANUAL FRAME
-    // -------------------------------------------------
+    // =================================================
 
     if (
       frameProductId === null &&
@@ -830,9 +849,9 @@ export const createSale = async (
         "Manual Frame";
     }
 
-    // -------------------------------------------------
+    // =================================================
     // AT LEAST ONE ITEM
-    // -------------------------------------------------
+    // =================================================
 
     if (
       lensPrice <= 0 &&
@@ -899,27 +918,31 @@ export const createSale = async (
     // ADVANCE PAYMENT
     // =================================================
 
-    let finalAdvance =
+    let advanceAmount =
       toNumber(
         advance_amount
       );
 
-    // Negative advance is not allowed
     if (
-      finalAdvance < 0
+      !Number.isFinite(
+        advanceAmount
+      ) ||
+      advanceAmount < 0
     ) {
-      await connection.rollback();
-
-      return res.status(400).json({
-        success: false,
-        message:
-          "Advance amount cannot be negative",
-      });
+      advanceAmount = 0;
     }
 
-    // Advance cannot exceed Grand Total
+    advanceAmount =
+      Number(
+        advanceAmount.toFixed(2)
+      );
+
+    // =================================================
+    // ADVANCE CANNOT EXCEED TOTAL
+    // =================================================
+
     if (
-      finalAdvance >
+      advanceAmount >
       grandTotal
     ) {
       await connection.rollback();
@@ -931,73 +954,32 @@ export const createSale = async (
       });
     }
 
-    finalAdvance =
-      Number(
-        finalAdvance.toFixed(2)
-      );
-
     // =================================================
-    // BALANCE
-    // =================================================
-
-    const balanceAmount =
-      Number(
-        (
-          grandTotal -
-          finalAdvance
-        ).toFixed(2)
-      );
-
-    // =================================================
-    // FINAL PAYMENT STATUS
+    // PAYMENT STATUS
     // =================================================
 
     let finalPaymentStatus =
-      normalizePaymentStatus(
-        payment_status
-      );
+      "PENDING";
 
-    // If advance covers complete bill,
-    // automatically mark as PAID.
     if (
-      grandTotal > 0 &&
-      finalAdvance >=
-        grandTotal
+      advanceAmount >=
+        grandTotal &&
+      grandTotal > 0
     ) {
-      finalAdvance =
-        grandTotal;
-
       finalPaymentStatus =
         "PAID";
-    }
-
-    // If any advance exists but
-    // full amount is not paid,
-    // status becomes PARTIAL.
-    else if (
-      finalAdvance > 0
+    } else if (
+      advanceAmount > 0
     ) {
       finalPaymentStatus =
         "PARTIAL";
-    }
-
-    // If user explicitly selected PAID,
-    // full amount must be considered received.
-    else if (
-      finalPaymentStatus ===
-      "PAID"
-    ) {
-      finalAdvance =
-        grandTotal;
     }
 
     // =================================================
     // CREATE SALE
     // =================================================
 
-    const [
-      saleResult,
-    ] =
+    const [saleResult] =
       await connection.query(
         `
         INSERT INTO sales
@@ -1015,7 +997,6 @@ export const createSale = async (
           gst_amount,
 
           grand_total,
-
           advance_amount,
 
           payment_status,
@@ -1039,7 +1020,6 @@ export const createSale = async (
           ?,
 
           ?,
-
           ?,
 
           ?,
@@ -1064,8 +1044,7 @@ export const createSale = async (
           gstAmount,
 
           grandTotal,
-
-          finalAdvance,
+          advanceAmount,
 
           finalPaymentStatus,
 
@@ -1086,9 +1065,7 @@ export const createSale = async (
     const saleId =
       saleResult.insertId;
 
-    if (
-      !saleId
-    ) {
+    if (!saleId) {
       throw new Error(
         "Sale could not be created"
       );
@@ -1132,13 +1109,14 @@ export const createSale = async (
             "Custom Lens",
 
           lensPrice,
+
           lensPrice,
         ]
       );
     }
 
     // =================================================
-    // FRAME SALE ITEM
+    // PRODUCT SALE ITEM
     // =================================================
 
     if (
@@ -1177,13 +1155,14 @@ export const createSale = async (
             "Manual Frame",
 
           framePrice,
+
           framePrice,
         ]
       );
     }
 
     // =================================================
-    // REDUCE REAL FRAME STOCK
+    // REDUCE REAL PRODUCT STOCK
     // =================================================
 
     if (
@@ -1214,21 +1193,20 @@ export const createSale = async (
         );
 
       if (
-        stockResult.affectedRows ===
-        0
+        stockResult.affectedRows === 0
       ) {
         await connection.rollback();
 
         return res.status(400).json({
           success: false,
           message:
-            "Unable to reduce frame stock",
+            "Unable to reduce product stock",
         });
       }
 
-      // -------------------------------------------------
+      // =================================================
       // INVENTORY MOVEMENT
-      // -------------------------------------------------
+      // =================================================
 
       try {
         await connection.query(
@@ -1255,8 +1233,12 @@ export const createSale = async (
           `,
           [
             frameProductId,
+
             saleId,
-            "Frame sold",
+
+            selectedProductType
+              ? `${selectedProductType} sold`
+              : "Product sold",
           ]
         );
       } catch (
@@ -1283,35 +1265,10 @@ export const createSale = async (
       await db.query(
         `
         SELECT
-
-          s.id,
-          s.customer_id,
+          s.*,
 
           c.name AS customer_name,
-          c.mobile AS customer_mobile,
-
-          s.eye_test_id,
-
-          s.subtotal,
-
-          s.discount_percent,
-          s.discount_amount,
-
-          s.gst_enabled,
-          s.gst_percent,
-          s.gst_amount,
-
-          s.grand_total,
-
-          s.advance_amount,
-
-          s.payment_status,
-          s.payment_method,
-
-          s.sale_date,
-          s.created_at,
-
-          s.notes
+          c.mobile AS customer_mobile
 
         FROM sales s
 
@@ -1326,15 +1283,10 @@ export const createSale = async (
         [saleId]
       );
 
-    // =================================================
-    // FETCH ITEMS
-    // =================================================
-
     const [items] =
       await db.query(
         `
         SELECT
-
           id,
           sale_id,
           item_type,
@@ -1396,10 +1348,18 @@ export const createSale = async (
           grandTotal,
 
         advance_amount:
-          finalAdvance,
+          advanceAmount,
 
         balance_amount:
-          balanceAmount,
+          Number(
+            (
+              grandTotal -
+              advanceAmount
+            ).toFixed(2)
+          ),
+
+        payment_status:
+          finalPaymentStatus,
       },
     });
   } catch (error) {
@@ -1448,7 +1408,7 @@ export const createSale = async (
     });
   } finally {
     // =================================================
-    // RELEASE CONNECTION
+    // RELEASE
     // =================================================
 
     if (connection) {
@@ -1471,34 +1431,10 @@ export const getSales = async (
       await db.query(
         `
         SELECT
-
-          s.id,
-          s.customer_id,
+          s.*,
 
           c.name AS customer_name,
-          c.mobile AS customer_mobile,
-
-          s.eye_test_id,
-
-          s.subtotal,
-
-          s.discount_percent,
-          s.discount_amount,
-
-          s.gst_enabled,
-          s.gst_percent,
-          s.gst_amount,
-
-          s.grand_total,
-
-          s.advance_amount,
-
-          s.payment_status,
-          s.payment_method,
-
-          s.sale_date,
-          s.notes,
-          s.created_at
+          c.mobile AS customer_mobile
 
         FROM sales s
 
@@ -1512,10 +1448,47 @@ export const getSales = async (
         `
       );
 
+    // =================================================
+    // ADD BALANCE AMOUNT
+    // =================================================
+
+    const formattedSales =
+      sales.map(
+        (sale) => {
+          const grandTotal =
+            toNumber(
+              sale.grand_total
+            );
+
+          const advanceAmount =
+            toNumber(
+              sale.advance_amount
+            );
+
+          return {
+            ...sale,
+
+            advance_amount:
+              advanceAmount,
+
+            balance_amount:
+              Number(
+                Math.max(
+                  0,
+                  grandTotal -
+                    advanceAmount
+                ).toFixed(2)
+              ),
+          };
+        }
+      );
+
     return res.status(200).json({
       success: true,
-      count: sales.length,
-      sales,
+      count:
+        formattedSales.length,
+      sales:
+        formattedSales,
     });
   } catch (error) {
     console.error(
@@ -1543,6 +1516,14 @@ export const getSales = async (
 // GET SALE BY ID
 // GET /api/sales/:id
 // =====================================================
+//
+// IMPORTANT:
+// This endpoint is used by BOTH:
+// 1. View invoice
+// 2. Print invoice
+//
+// Therefore it returns complete sale information.
+// =====================================================
 
 export const getSaleById =
   async (
@@ -1555,9 +1536,9 @@ export const getSaleById =
           req.params.id
         );
 
-      // -------------------------------------------------
+      // =================================================
       // VALIDATE ID
-      // -------------------------------------------------
+      // =================================================
 
       if (
         !Number.isInteger(
@@ -1572,17 +1553,20 @@ export const getSaleById =
         });
       }
 
-      // -------------------------------------------------
-      // SALE
-      // -------------------------------------------------
+      // =================================================
+      // GET SALE
+      //
+      // Using s.* here intentionally.
+      // This prevents the details endpoint from breaking
+      // when new columns such as advance_amount are added
+      // to the sales table.
+      // =================================================
 
       const [sales] =
         await db.query(
           `
           SELECT
-
-            s.id,
-            s.customer_id,
+            s.*,
 
             c.name AS customer_name,
             c.mobile AS customer_mobile,
@@ -1590,30 +1574,7 @@ export const getSaleById =
             c.address AS customer_address,
             c.city AS customer_city,
             c.state AS customer_state,
-            c.pincode AS customer_pincode,
-
-            s.eye_test_id,
-
-            s.subtotal,
-
-            s.discount_percent,
-            s.discount_amount,
-
-            s.gst_enabled,
-            s.gst_percent,
-            s.gst_amount,
-
-            s.grand_total,
-
-            s.advance_amount,
-
-            s.payment_status,
-            s.payment_method,
-
-            s.sale_date,
-            s.created_at,
-
-            s.notes
+            c.pincode AS customer_pincode
 
           FROM sales s
 
@@ -1628,6 +1589,10 @@ export const getSaleById =
           [saleId]
         );
 
+      // =================================================
+      // SALE NOT FOUND
+      // =================================================
+
       if (
         sales.length === 0
       ) {
@@ -1638,15 +1603,17 @@ export const getSaleById =
         });
       }
 
-      // -------------------------------------------------
+      const sale =
+        sales[0];
+
+      // =================================================
       // SALE ITEMS
-      // -------------------------------------------------
+      // =================================================
 
       const [items] =
         await db.query(
           `
           SELECT
-
             id,
             sale_id,
             item_type,
@@ -1665,64 +1632,139 @@ export const getSaleById =
           [saleId]
         );
 
-      // -------------------------------------------------
-      // BALANCE
-      // -------------------------------------------------
+      // =================================================
+      // PAYMENT CALCULATIONS
+      // =================================================
 
       const grandTotal =
-        Number(
-          sales[0]
-            .grand_total || 0
+        toNumber(
+          sale.grand_total
         );
 
       const advanceAmount =
-        Number(
-          sales[0]
-            .advance_amount || 0
+        toNumber(
+          sale.advance_amount
         );
 
       const balanceAmount =
-        Math.max(
-          0,
-          Number(
-            (
-              grandTotal -
+        Number(
+          Math.max(
+            0,
+            grandTotal -
               advanceAmount
-            ).toFixed(2)
-          )
+          ).toFixed(2)
         );
 
-      // -------------------------------------------------
+      // =================================================
+      // NORMALIZED SALE
+      // =================================================
+
+      const normalizedSale = {
+        ...sale,
+
+        advance_amount:
+          advanceAmount,
+
+        balance_amount:
+          balanceAmount,
+
+        payment_status:
+          normalizePaymentStatus(
+            sale.payment_status
+          ),
+      };
+
+      // =================================================
       // RESPONSE
-      // -------------------------------------------------
+      // =================================================
 
       return res.status(200).json({
         success: true,
 
-        sale: {
-          ...sales[0],
+        sale:
+          normalizedSale,
+
+        items,
+
+        calculation: {
+          subtotal:
+            toNumber(
+              sale.subtotal
+            ),
+
+          discount_percent:
+            toNumber(
+              sale.discount_percent
+            ),
+
+          discount_amount:
+            toNumber(
+              sale.discount_amount
+            ),
+
+          gst_enabled:
+            Boolean(
+              sale.gst_enabled
+            ),
+
+          gst_percent:
+            toNumber(
+              sale.gst_percent
+            ),
+
+          gst_amount:
+            toNumber(
+              sale.gst_amount
+            ),
+
+          grand_total:
+            grandTotal,
+
+          advance_amount:
+            advanceAmount,
 
           balance_amount:
             balanceAmount,
-        },
 
-        items,
+          payment_status:
+            normalizePaymentStatus(
+              sale.payment_status
+            ),
+        },
       });
     } catch (error) {
+      // =================================================
+      // DETAILED ERROR LOG
+      // =================================================
+
       console.error(
         "Get Sale Error:",
         error
       );
 
+      console.error(
+        "Get Sale SQL Message:",
+        error.sqlMessage
+      );
+
+      console.error(
+        "Get Sale SQL Code:",
+        error.code
+      );
+
       return res.status(500).json({
         success: false,
+
         message:
           "Failed to fetch sale",
+
         error:
           error.message,
+
         sqlMessage:
           error.sqlMessage ||
           null,
+
         code:
           error.code ||
           null,
@@ -1735,21 +1777,16 @@ export const getSaleById =
 // PATCH /api/sales/:id/payment
 // =====================================================
 //
-// PAYMENT FLOW:
+// Payment flow:
 //
-// PENDING
-//    ↓
-// PARTIAL
-//    ↓
-// PAID
+// PENDING  -> PAID
+// PARTIAL  -> PAID
 //
 // Once PAID:
-//    ❌ Cannot change again
+// PAID -> anything is BLOCKED
 //
-// When PAID:
-//    advance_amount = grand_total
-//    balance_amount = 0
-//
+// This prevents already-paid invoices from being
+// edited again.
 // =====================================================
 
 export const updatePaymentStatus =
@@ -1757,17 +1794,15 @@ export const updatePaymentStatus =
     req,
     res
   ) => {
-    let connection = null;
-
     try {
       const saleId =
         Number(
           req.params.id
         );
 
-      // -------------------------------------------------
-      // VALIDATE ID
-      // -------------------------------------------------
+      // =================================================
+      // VALIDATE SALE ID
+      // =================================================
 
       if (
         !Number.isInteger(
@@ -1787,47 +1822,19 @@ export const updatePaymentStatus =
         payment_method,
       } = req.body;
 
-      const status =
+      const requestedStatus =
         normalizePaymentStatus(
           payment_status
         );
 
-      // -------------------------------------------------
-      // ALLOWED STATUS
-      // -------------------------------------------------
-
-      if (
-        ![
-          "PENDING",
-          "PARTIAL",
-          "PAID",
-        ].includes(status)
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Invalid payment status",
-        });
-      }
-
-      // -------------------------------------------------
-      // CONNECTION
-      // -------------------------------------------------
-
-      connection =
-        await db.getConnection();
-
-      await connection.beginTransaction();
-
-      // -------------------------------------------------
+      // =================================================
       // GET CURRENT SALE
-      // -------------------------------------------------
+      // =================================================
 
       const [sales] =
-        await connection.query(
+        await db.query(
           `
           SELECT
-
             id,
             grand_total,
             advance_amount,
@@ -1839,8 +1846,6 @@ export const updatePaymentStatus =
           WHERE id = ?
 
           LIMIT 1
-
-          FOR UPDATE
           `,
           [saleId]
         );
@@ -1848,8 +1853,6 @@ export const updatePaymentStatus =
       if (
         sales.length === 0
       ) {
-        await connection.rollback();
-
         return res.status(404).json({
           success: false,
           message:
@@ -1862,20 +1865,7 @@ export const updatePaymentStatus =
 
       const currentStatus =
         normalizePaymentStatus(
-          currentSale
-            .payment_status
-        );
-
-      const grandTotal =
-        Number(
-          currentSale
-            .grand_total || 0
-        );
-
-      const currentAdvance =
-        Number(
-          currentSale
-            .advance_amount || 0
+          currentSale.payment_status
         );
 
       // =================================================
@@ -1886,8 +1876,6 @@ export const updatePaymentStatus =
         currentStatus ===
         "PAID"
       ) {
-        await connection.rollback();
-
         return res.status(400).json({
           success: false,
           message:
@@ -1896,212 +1884,153 @@ export const updatePaymentStatus =
       }
 
       // =================================================
-      // FINAL ADVANCE
+      // ONLY ALLOW FINAL PAYMENT
+      //
+      // Existing workflow:
+      //
+      // Advance:
+      // PENDING/PARTIAL
+      //
+      // Product delivery:
+      // PAID
+      //
       // =================================================
 
-      let finalAdvance =
-        currentAdvance;
-
-      // -------------------------------------------------
-      // PENDING
-      // -------------------------------------------------
-
       if (
-        status ===
-        "PENDING"
-      ) {
-        // No payment received
-        finalAdvance = 0;
-      }
-
-      // -------------------------------------------------
-      // PARTIAL
-      // -------------------------------------------------
-
-      else if (
-        status ===
-        "PARTIAL"
-      ) {
-        // Keep already received advance.
-        //
-        // If there is no advance,
-        // PARTIAL is not valid.
-        if (
-          finalAdvance <= 0
-        ) {
-          await connection.rollback();
-
-          return res.status(400).json({
-            success: false,
-            message:
-              "Partial payment requires an advance amount greater than zero.",
-          });
-        }
-
-        if (
-          finalAdvance >=
-          grandTotal
-        ) {
-          await connection.rollback();
-
-          return res.status(400).json({
-            success: false,
-            message:
-              "Payment is already equal to the grand total. Use PAID.",
-          });
-        }
-      }
-
-      // -------------------------------------------------
-      // PAID
-      // -------------------------------------------------
-
-      else if (
-        status ===
+        requestedStatus !==
         "PAID"
       ) {
-        // When customer pays remaining amount,
-        // advance becomes complete grand total.
-        finalAdvance =
-          grandTotal;
+        return res.status(400).json({
+          success: false,
+          message:
+            "Payment can only be updated to PAID after final payment.",
+        });
       }
 
-      finalAdvance =
-        Number(
-          Math.max(
-            0,
-            Math.min(
-              finalAdvance,
-              grandTotal
-            )
-          ).toFixed(2)
+      // =================================================
+      // UPDATE ADVANCE TO FULL TOTAL
+      // =================================================
+
+      const grandTotal =
+        toNumber(
+          currentSale.grand_total
         );
 
-      const balanceAmount =
+      // Once final payment is received,
+      // the total paid amount becomes grand total.
+      const finalAdvanceAmount =
         Number(
-          Math.max(
-            0,
-            grandTotal -
-              finalAdvance
-          ).toFixed(2)
+          grandTotal.toFixed(2)
         );
+
+      // =================================================
+      // PAYMENT METHOD
+      // =================================================
+
+      const finalPaymentMethod =
+        payment_method
+          ? String(
+              payment_method
+            ).trim()
+          : currentSale.payment_method
+            ? String(
+                currentSale.payment_method
+              ).trim()
+            : null;
 
       // =================================================
       // UPDATE
       // =================================================
 
-      const [
-        result,
-      ] =
-        await connection.query(
+      const [result] =
+        await db.query(
           `
           UPDATE sales
 
           SET
+            advance_amount = ?,
+            payment_status = 'PAID',
+            payment_method = ?
 
-            payment_status = ?,
-
-            payment_method =
-              COALESCE(
-                ?,
-                payment_method
-              ),
-
-            advance_amount = ?
-
-          WHERE
-            id = ?
+          WHERE id = ?
 
             AND payment_status <> 'PAID'
           `,
           [
-            status,
+            finalAdvanceAmount,
 
-            payment_method
-              ? String(
-                  payment_method
-                ).trim()
-              : null,
-
-            finalAdvance,
+            finalPaymentMethod,
 
             saleId,
           ]
         );
 
-      if (
-        result.affectedRows ===
-        0
-      ) {
-        await connection.rollback();
+      // =================================================
+      // NOTHING UPDATED
+      // =================================================
 
+      if (
+        result.affectedRows === 0
+      ) {
         return res.status(400).json({
           success: false,
           message:
-            "Payment could not be updated. The sale may already be PAID.",
+            "Payment could not be updated. It may already be PAID.",
         });
       }
 
       // =================================================
-      // COMMIT
+      // FETCH UPDATED SALE
       // =================================================
 
-      await connection.commit();
+      const [updatedRows] =
+        await db.query(
+          `
+          SELECT
+            s.*,
+
+            c.name AS customer_name,
+            c.mobile AS customer_mobile
+
+          FROM sales s
+
+          LEFT JOIN customers c
+            ON c.id =
+               s.customer_id
+
+          WHERE s.id = ?
+
+          LIMIT 1
+          `,
+          [saleId]
+        );
+
+      const updatedSale =
+        updatedRows[0] || null;
 
       // =================================================
-      // RESPONSE
+      // SUCCESS
       // =================================================
 
       return res.status(200).json({
         success: true,
 
         message:
-          status === "PAID"
-            ? "Payment completed successfully. Sale is now locked."
-            : "Payment status updated successfully.",
+          "Payment status updated successfully",
 
-        payment: {
-          payment_status:
-            status,
+        sale:
+          updatedSale,
 
-          grand_total:
-            grandTotal,
+        advance_amount:
+          finalAdvanceAmount,
 
-          advance_amount:
-            finalAdvance,
+        balance_amount:
+          0,
 
-          balance_amount:
-            balanceAmount,
-
-          payment_method:
-            payment_method ||
-            currentSale
-              .payment_method ||
-            null,
-        },
+        payment_status:
+          "PAID",
       });
     } catch (error) {
-      // -------------------------------------------------
-      // ROLLBACK
-      // -------------------------------------------------
-
-      if (connection) {
-        try {
-          await connection.rollback();
-        } catch (
-          rollbackError
-        ) {
-          console.error(
-            "Payment Rollback Error:",
-            rollbackError
-          );
-        }
-      }
-
-      // -------------------------------------------------
-      // LOG
-      // -------------------------------------------------
-
       console.error(
         "Update Payment Error:",
         error
@@ -2124,9 +2053,5 @@ export const updatePaymentStatus =
           error.code ||
           null,
       });
-    } finally {
-      if (connection) {
-        connection.release();
-      }
     }
   };
