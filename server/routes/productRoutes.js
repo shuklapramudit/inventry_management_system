@@ -7,6 +7,7 @@ import {
   updateProduct,
   deleteProduct,
   restoreProduct,
+  replaceProductImages,
 } from "../controllers/productController.js";
 
 import {
@@ -18,13 +19,7 @@ import {
   handleUploadError,
 } from "../middleware/uploadMiddleware.js";
 
-
-// =====================================================
-// ROUTER
-// =====================================================
-
 const router = express.Router();
-
 
 // =====================================================
 // GET ALL PRODUCTS
@@ -37,7 +32,6 @@ router.get(
   getProducts
 );
 
-
 // =====================================================
 // GET SINGLE PRODUCT
 // GET /api/products/:id
@@ -48,7 +42,6 @@ router.get(
   protect,
   getProductById
 );
-
 
 // =====================================================
 // CREATE PRODUCT
@@ -63,7 +56,6 @@ router.post(
   createProduct
 );
 
-
 // =====================================================
 // UPDATE PRODUCT
 // PUT /api/products/:id
@@ -77,6 +69,27 @@ router.put(
   updateProduct
 );
 
+// =====================================================
+// REPLACE PRODUCT IMAGES
+// PUT /api/products/:id/images
+// =====================================================
+//
+// Existing product ki images ko Cloudinary par upload
+// karke DB me permanent Cloudinary URLs save karega.
+//
+// IMPORTANT:
+// Field name = product_images
+// Maximum = 5
+//
+// =====================================================
+
+router.put(
+  "/:id/images",
+  protect,
+  uploadProductImages,
+  handleUploadError,
+  replaceProductImages
+);
 
 // =====================================================
 // DELETE PRODUCT
@@ -89,7 +102,6 @@ router.delete(
   deleteProduct
 );
 
-
 // =====================================================
 // RESTORE PRODUCT
 // PATCH /api/products/:id/restore
@@ -100,10 +112,5 @@ router.patch(
   protect,
   restoreProduct
 );
-
-
-// =====================================================
-// EXPORT
-// =====================================================
 
 export default router;

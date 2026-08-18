@@ -5,119 +5,98 @@ import multer from "multer";
 // =====================================================
 //
 // IMPORTANT:
-// Render/server local filesystem par product images
-// permanently save nahi karni hain.
 //
-// Files temporary memory me rahengi.
-// productController.js in files ko Cloudinary ya
-// kisi permanent storage par upload kar sakta hai.
+// Images Render ke local filesystem me save nahi hongi.
+//
+// Files temporarily memory me rahengi.
+//
+// Product controller in files ko directly
+// Cloudinary par upload karega.
 //
 // =====================================================
 
 const storage = multer.memoryStorage();
 
-
 // =====================================================
 // FILE FILTER
 // =====================================================
 
-const fileFilter = (req, file, cb) => {
-  try {
-    // -------------------------------------------------
-    // ALLOWED MIME TYPES
-    // -------------------------------------------------
+const fileFilter = (
+  req,
+  file,
+  cb
+) => {
 
-    const allowedMimeTypes = [
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-    ];
+  const allowedMimeTypes = [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ];
 
-    // -------------------------------------------------
-    // ALLOWED EXTENSIONS
-    // -------------------------------------------------
+  const allowedExtensions = [
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+  ];
 
-    const allowedExtensions = [
-      ".jpg",
-      ".jpeg",
-      ".png",
-      ".webp",
-    ];
+  const originalName =
+    file.originalname || "";
 
-    // -------------------------------------------------
-    // ORIGINAL FILE NAME
-    // -------------------------------------------------
+  const lastDotIndex =
+    originalName.lastIndexOf(".");
 
-    const originalName =
-      file.originalname || "";
+  const extension =
+    lastDotIndex !== -1
+      ? originalName
+          .substring(lastDotIndex)
+          .toLowerCase()
+      : "";
 
-    // -------------------------------------------------
-    // GET EXTENSION
-    // -------------------------------------------------
-
-    const lastDotIndex =
-      originalName.lastIndexOf(".");
-
-    const extension =
-      lastDotIndex !== -1
-        ? originalName
-            .substring(lastDotIndex)
-            .toLowerCase()
-        : "";
-
-    // -------------------------------------------------
-    // VALIDATE
-    // -------------------------------------------------
-
-    if (
-      allowedMimeTypes.includes(file.mimetype) &&
-      allowedExtensions.includes(extension)
-    ) {
-      return cb(null, true);
-    }
-
-    return cb(
+  if (
+    allowedMimeTypes.includes(
+      file.mimetype
+    ) &&
+    allowedExtensions.includes(
+      extension
+    )
+  ) {
+    cb(null, true);
+  } else {
+    cb(
       new Error(
         "Only JPG, JPEG, PNG and WEBP images are allowed."
       ),
       false
     );
-
-  } catch (error) {
-    return cb(error, false);
   }
 };
 
-
 // =====================================================
-// MULTER INSTANCE
+// MULTER CONFIGURATION
 // =====================================================
 
 const upload = multer({
+
   storage,
 
   fileFilter,
 
   limits: {
-    // Maximum 5 files
+
+    // Maximum 5 images
     files: 5,
 
-    // Maximum 5MB per file
-    fileSize: 5 * 1024 * 1024,
+    // Maximum 5MB per image
+    fileSize:
+      5 * 1024 * 1024,
+
   },
+
 });
 
-
 // =====================================================
-// PRODUCT IMAGE UPLOAD
-// =====================================================
-//
-// Frontend FormData field:
-// product_images
-//
-// Maximum:
-// 5 images
-//
+// PRODUCT IMAGES
 // =====================================================
 
 export const uploadProductImages =
@@ -126,20 +105,8 @@ export const uploadProductImages =
     5
   );
 
-
 // =====================================================
 // UPLOAD ERROR HANDLER
-// =====================================================
-//
-// IMPORTANT:
-// This MUST be a NAMED EXPORT because
-// productRoutes.js imports it using:
-//
-// import {
-//   uploadProductImages,
-//   handleUploadError
-// } from "../middleware/uploadMiddleware.js";
-//
 // =====================================================
 
 export const handleUploadError = (
@@ -150,24 +117,18 @@ export const handleUploadError = (
 ) => {
 
   // -------------------------------------------------
-  // NO ERROR
-  // -------------------------------------------------
-
-  if (!err) {
-    return next();
-  }
-
-  // -------------------------------------------------
   // MULTER ERROR
   // -------------------------------------------------
 
-  if (err instanceof multer.MulterError) {
+  if (
+    err instanceof
+    multer.MulterError
+  ) {
 
-    // -----------------------------------------------
-    // FILE TOO LARGE
-    // -----------------------------------------------
-
-    if (err.code === "LIMIT_FILE_SIZE") {
+    if (
+      err.code ===
+      "LIMIT_FILE_SIZE"
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -175,11 +136,10 @@ export const handleUploadError = (
       });
     }
 
-    // -----------------------------------------------
-    // TOO MANY FILES
-    // -----------------------------------------------
-
-    if (err.code === "LIMIT_FILE_COUNT") {
+    if (
+      err.code ===
+      "LIMIT_FILE_COUNT"
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -187,21 +147,16 @@ export const handleUploadError = (
       });
     }
 
-    // -----------------------------------------------
-    // WRONG FIELD
-    // -----------------------------------------------
-
-    if (err.code === "LIMIT_UNEXPECTED_FILE") {
+    if (
+      err.code ===
+      "LIMIT_UNEXPECTED_FILE"
+    ) {
       return res.status(400).json({
         success: false,
         message:
-          "Unexpected image field. Use 'product_images'.",
+          "Unexpected image field. Use product_images.",
       });
     }
-
-    // -----------------------------------------------
-    // OTHER MULTER ERROR
-    // -----------------------------------------------
 
     return res.status(400).json({
       success: false,
@@ -211,16 +166,19 @@ export const handleUploadError = (
   }
 
   // -------------------------------------------------
-  // CUSTOM FILE FILTER ERROR
+  // FILE FILTER ERROR
   // -------------------------------------------------
 
-  return res.status(400).json({
-    success: false,
-    message:
-      err.message || "Image upload failed.",
-  });
-};
+  if (err) {
+    return res.status(400).json({
+      success: false,
+      message:
+        err.message,
+    });
+  }
 
+  next();
+};
 
 // =====================================================
 // DEFAULT EXPORT

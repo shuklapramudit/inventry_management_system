@@ -1918,6 +1918,282 @@ export const deleteProduct =
 
 
 // =====================================================
+// REPLACE PRODUCT IMAGES
+// PUT /api/products/:id/images
+// =====================================================
+//
+// Existing product ki images ko Cloudinary par upload
+// karega aur MySQL me new Cloudinary URLs save karega.
+//
+// IMPORTANT:
+// - Product delete nahi hoga
+// - Product ka naam/price/stock change nahi hoga
+// - Sirf product_image update hoga
+// - Maximum 5 images
+//
+// =====================================================
+
+export const replaceProductImages =
+  async (
+    req,
+    res
+  ) => {
+
+    try {
+
+      // =================================================
+      // PRODUCT ID
+      // =================================================
+
+      const productId =
+        Number(
+          req.params.id
+        );
+
+      // =================================================
+      // VALIDATE ID
+      // =================================================
+
+      if (
+        !Number.isInteger(
+          productId
+        ) ||
+        productId <= 0
+      ) {
+
+        return res.status(
+          400
+        ).json({
+
+          success: false,
+
+          message:
+            "Invalid product ID.",
+
+        });
+
+      }
+
+      // =================================================
+      // CHECK PRODUCT
+      // =================================================
+
+      const [
+        existingRows,
+      ] = await db.query(
+        `
+        SELECT
+          id,
+          product_name,
+          product_image
+        FROM products
+        WHERE id = ?
+        LIMIT 1
+        `,
+        [
+          productId,
+        ]
+      );
+
+      if (
+        existingRows.length === 0
+      ) {
+
+        return res.status(
+          404
+        ).json({
+
+          success: false,
+
+          message:
+            "Product not found.",
+
+        });
+
+      }
+
+      // =================================================
+      // CHECK FILES
+      // =================================================
+
+      if (
+        !req.files ||
+        req.files.length === 0
+      ) {
+
+        return res.status(
+          400
+        ).json({
+
+          success: false,
+
+          message:
+            "Please upload at least one product image.",
+
+        });
+
+      }
+
+      // =================================================
+      // CLOUDINARY UPLOAD
+      // =================================================
+
+      const uploadedImages = [];
+
+      for (
+        const file of req.files
+      ) {
+
+        const result =
+          await uploadToCloudinary(
+            file
+          );
+
+        if (
+          result &&
+          result.secure_url
+        ) {
+
+          uploadedImages.push(
+            result.secure_url
+          );
+
+        }
+
+      }
+
+      // =================================================
+      // CHECK CLOUDINARY RESULT
+      // =================================================
+
+      if (
+        uploadedImages.length === 0
+      ) {
+
+        return res.status(
+          500
+        ).json({
+
+          success: false,
+
+          message:
+            "Images could not be uploaded to Cloudinary.",
+
+        });
+
+      }
+
+      // =================================================
+      // MAXIMUM 5 IMAGES
+      // =================================================
+
+      const finalImages =
+        uploadedImages
+          .filter(Boolean)
+          .slice(0, 5);
+
+      // =================================================
+      // SAVE CLOUDINARY URLS
+      // =================================================
+
+      await db.query(
+        `
+        UPDATE products
+        SET product_image = ?
+        WHERE id = ?
+        `,
+        [
+          JSON.stringify(
+            finalImages
+          ),
+          productId,
+        ]
+      );
+
+      // =================================================
+      // GET UPDATED PRODUCT
+      // =================================================
+
+      const [
+        updatedRows,
+      ] = await db.query(
+        `
+        SELECT
+          id,
+          product_type,
+          product_name,
+          selling_price,
+          product_image,
+          stock_quantity,
+          minimum_stock,
+          shop_location,
+          description,
+          is_active,
+          created_at,
+          updated_at
+        FROM products
+        WHERE id = ?
+        LIMIT 1
+        `,
+        [
+          productId,
+        ]
+      );
+
+      const product =
+        normalizeProduct(
+          updatedRows[0]
+        );
+
+      // =================================================
+      // SUCCESS
+      // =================================================
+
+      return res.status(
+        200
+      ).json({
+
+        success: true,
+
+        message:
+          "Product images uploaded successfully.",
+
+        product,
+
+        data:
+          product,
+
+      });
+
+    } catch (error) {
+
+      console.error(
+        "REPLACE PRODUCT IMAGES ERROR:",
+        error
+      );
+
+      return res.status(
+        500
+      ).json({
+
+        success: false,
+
+        message:
+          "Failed to replace product images.",
+
+        error:
+          process.env.NODE_ENV ===
+          "development"
+            ? error.message
+            : undefined,
+
+      });
+
+    }
+
+  };  
+
+// =====================================================
 // RESTORE PRODUCT
 // PATCH /api/products/:id/restore
 // =====================================================
