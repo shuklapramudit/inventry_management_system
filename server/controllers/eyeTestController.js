@@ -1,6 +1,5 @@
 import db from "../config/db.js";
 
-
 // =====================================================
 // COMMON HELPERS
 // =====================================================
@@ -11,7 +10,6 @@ const isPositiveInteger = (value) => {
     Number(value) > 0
   );
 };
-
 
 const toNullableNumber = (value) => {
   if (
@@ -29,7 +27,6 @@ const toNullableNumber = (value) => {
     : null;
 };
 
-
 const toPrice = (value) => {
   if (
     value === undefined ||
@@ -45,7 +42,6 @@ const toPrice = (value) => {
     ? number
     : null;
 };
-
 
 // =====================================================
 // GET ALL EYE TESTS
@@ -123,15 +119,16 @@ export const getEyeTests = async (
 
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch eye tests",
+      message:
+        "Failed to fetch eye tests",
       error:
-        process.env.NODE_ENV === "development"
+        process.env.NODE_ENV ===
+        "development"
           ? error.message
           : undefined,
     });
   }
 };
-
 
 // =====================================================
 // GET SINGLE EYE TEST
@@ -148,129 +145,8 @@ export const getEyeTestById = async (
     if (!isPositiveInteger(id)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid eye test ID",
-      });
-    }
-
-    const [tests] = await db.query(
-      `
-      SELECT
-        et.id,
-        et.customer_id,
-
-        c.name AS customer_name,
-        c.mobile AS customer_mobile,
-
-        et.right_sph,
-        et.right_cyl,
-        et.right_axis,
-        et.right_add,
-        et.right_pd,
-
-        et.left_sph,
-        et.left_cyl,
-        et.left_axis,
-        et.left_add,
-        et.left_pd,
-
-        et.lens_type_id,
-
-        COALESCE(
-          lt.name,
-          et.lens_type_name
-        ) AS lens_type,
-
-        et.lens_type_name,
-        et.lens_price,
-
-        et.frame_product_id,
-        et.frame_name,
-        et.frame_price,
-
-        et.test_date,
-        et.notes,
-        et.created_at,
-        et.updated_at
-
-      FROM eye_tests et
-
-      INNER JOIN customers c
-        ON et.customer_id = c.id
-
-      LEFT JOIN lens_types lt
-        ON et.lens_type_id = lt.id
-
-      WHERE et.id = ?
-
-      LIMIT 1
-      `,
-      [id]
-    );
-
-    if (tests.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Eye test not found",
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      eyeTest: tests[0],
-    });
-
-  } catch (error) {
-    console.error(
-      "Get Eye Test By ID Error:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch eye test",
-    });
-  }
-};
-
-
-// =====================================================
-// GET EYE TESTS BY CUSTOMER
-// GET /api/eye-tests/customer/:customerId
-// =====================================================
-
-export const getEyeTestsByCustomer = async (
-  req,
-  res
-) => {
-  try {
-    const { customerId } =
-      req.params;
-
-    if (!isPositiveInteger(customerId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid customer ID",
-      });
-    }
-
-    const [customers] =
-      await db.query(
-        `
-        SELECT
-          id,
-          name,
-          mobile
-        FROM customers
-        WHERE id = ?
-        LIMIT 1
-        `,
-        [customerId]
-      );
-
-    if (customers.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Customer not found",
+        message:
+          "Invalid eye test ID",
       });
     }
 
@@ -311,7 +187,9 @@ export const getEyeTestsByCustomer = async (
           et.frame_price,
 
           et.test_date,
-          et.notes
+          et.notes,
+          et.created_at,
+          et.updated_at
 
         FROM eye_tests et
 
@@ -321,44 +199,171 @@ export const getEyeTestsByCustomer = async (
         LEFT JOIN lens_types lt
           ON et.lens_type_id = lt.id
 
-        WHERE et.customer_id = ?
+        WHERE et.id = ?
 
-        ORDER BY
-          et.test_date DESC,
-          et.id DESC
+        LIMIT 1
         `,
-        [customerId]
+        [id]
       );
+
+    if (tests.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Eye test not found",
+      });
+    }
 
     return res.status(200).json({
       success: true,
-
-      customer: customers[0],
-
-      count: tests.length,
-
-      eyeTests: tests,
-
-      latestEyeTest:
-        tests.length > 0
-          ? tests[0]
-          : null,
+      eyeTest: tests[0],
     });
 
   } catch (error) {
     console.error(
-      "Get Customer Eye Tests Error:",
+      "Get Eye Test By ID Error:",
       error
     );
 
     return res.status(500).json({
       success: false,
       message:
-        "Failed to fetch customer eye tests",
+        "Failed to fetch eye test",
     });
   }
 };
 
+// =====================================================
+// GET EYE TESTS BY CUSTOMER
+// GET /api/eye-tests/customer/:customerId
+// =====================================================
+
+export const getEyeTestsByCustomer =
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const { customerId } =
+        req.params;
+
+      if (
+        !isPositiveInteger(
+          customerId
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid customer ID",
+        });
+      }
+
+      const [customers] =
+        await db.query(
+          `
+          SELECT
+            id,
+            name,
+            mobile
+          FROM customers
+          WHERE id = ?
+          LIMIT 1
+          `,
+          [customerId]
+        );
+
+      if (
+        customers.length === 0
+      ) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Customer not found",
+        });
+      }
+
+      const [tests] =
+        await db.query(
+          `
+          SELECT
+            et.id,
+            et.customer_id,
+
+            c.name AS customer_name,
+            c.mobile AS customer_mobile,
+
+            et.right_sph,
+            et.right_cyl,
+            et.right_axis,
+            et.right_add,
+            et.right_pd,
+
+            et.left_sph,
+            et.left_cyl,
+            et.left_axis,
+            et.left_add,
+            et.left_pd,
+
+            et.lens_type_id,
+
+            COALESCE(
+              lt.name,
+              et.lens_type_name
+            ) AS lens_type,
+
+            et.lens_type_name,
+            et.lens_price,
+
+            et.frame_product_id,
+            et.frame_name,
+            et.frame_price,
+
+            et.test_date,
+            et.notes
+
+          FROM eye_tests et
+
+          INNER JOIN customers c
+            ON et.customer_id = c.id
+
+          LEFT JOIN lens_types lt
+            ON et.lens_type_id = lt.id
+
+          WHERE et.customer_id = ?
+
+          ORDER BY
+            et.test_date DESC,
+            et.id DESC
+          `,
+          [customerId]
+        );
+
+      return res.status(200).json({
+        success: true,
+        customer:
+          customers[0],
+        count: tests.length,
+        eyeTests: tests,
+        latestEyeTest:
+          tests.length > 0
+            ? tests[0]
+            : null,
+      });
+
+    } catch (error) {
+      console.error(
+        "Get Customer Eye Tests Error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Failed to fetch customer eye tests",
+      });
+    }
+  };
 
 // =====================================================
 // GET CUSTOMERS
@@ -366,7 +371,10 @@ export const getEyeTestsByCustomer = async (
 // =====================================================
 
 export const getCustomersForEyeTest =
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const [customers] =
         await db.query(`
@@ -398,14 +406,16 @@ export const getCustomersForEyeTest =
     }
   };
 
-
 // =====================================================
 // GET LENS TYPES
 // GET /api/eye-tests/lens-types
 // =====================================================
 
 export const getLensTypes =
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const [lensTypes] =
         await db.query(`
@@ -438,19 +448,28 @@ export const getLensTypes =
     }
   };
 
-
 // =====================================================
 // GET AVAILABLE FRAMES
 // GET /api/eye-tests/frames
 // =====================================================
+//
+// IMPORTANT:
+// Frame + Sunglass both supported.
+// Response key remains "frames" so existing
+// frontend functionality does not break.
+// =====================================================
 
 export const getFramesForEyeTest =
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const [frames] =
         await db.query(`
           SELECT
             p.id,
+            p.product_type,
             p.product_name,
             p.product_image,
             p.shop_location,
@@ -472,14 +491,25 @@ export const getFramesForEyeTest =
             ON p.id = i.product_id
 
           WHERE
-            p.product_type = 'Frame'
+            LOWER(
+              TRIM(
+                p.product_type
+              )
+            ) IN (
+              'frame',
+              'sunglass',
+              'sunglasses'
+            )
+
             AND p.is_active = TRUE
+
             AND COALESCE(
               i.current_stock,
               0
             ) > 0
 
           ORDER BY
+            p.product_type ASC,
             p.product_name ASC
         `);
 
@@ -500,13 +530,13 @@ export const getFramesForEyeTest =
         message:
           "Failed to fetch frames",
         error:
-          process.env.NODE_ENV === "development"
+          process.env.NODE_ENV ===
+          "development"
             ? error.message
             : undefined,
       });
     }
   };
-
 
 // =====================================================
 // CREATE MANUAL FRAME
@@ -514,7 +544,10 @@ export const getFramesForEyeTest =
 // =====================================================
 
 export const createManualFrame =
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     const connection =
       await db.getConnection();
 
@@ -576,13 +609,16 @@ export const createManualFrame =
       }
 
       const lowStock =
-        low_stock_limit === undefined ||
+        low_stock_limit ===
+          undefined ||
         low_stock_limit === ""
           ? 5
           : Number(low_stock_limit);
 
       if (
-        !Number.isInteger(lowStock) ||
+        !Number.isInteger(
+          lowStock
+        ) ||
         lowStock < 0
       ) {
         return res.status(400).json({
@@ -593,7 +629,8 @@ export const createManualFrame =
       }
 
       const purchasePrice =
-        purchase_price === undefined ||
+        purchase_price ===
+          undefined ||
         purchase_price === ""
           ? 0
           : Number(purchase_price);
@@ -612,7 +649,8 @@ export const createManualFrame =
       }
 
       const sellingPrice =
-        selling_price === undefined ||
+        selling_price ===
+          undefined ||
         selling_price === ""
           ? 0
           : Number(selling_price);
@@ -632,10 +670,9 @@ export const createManualFrame =
 
       await connection.beginTransaction();
 
-
-      // -------------------------------------------------
+      // =================================================
       // PRODUCT
-      // -------------------------------------------------
+      // =================================================
 
       const [
         productResult,
@@ -666,21 +703,20 @@ export const createManualFrame =
           [
             product_name.trim(),
             sellingPrice,
-            product_image || null,
+            product_image ||
+              null,
             shop_location,
             description?.trim() ||
               null,
           ]
         );
 
-
       const productId =
         productResult.insertId;
 
-
-      // -------------------------------------------------
+      // =================================================
       // INVENTORY
-      // -------------------------------------------------
+      // =================================================
 
       await connection.query(
         `
@@ -703,10 +739,9 @@ export const createManualFrame =
         ]
       );
 
-
-      // -------------------------------------------------
+      // =================================================
       // PURCHASE HISTORY
-      // -------------------------------------------------
+      // =================================================
 
       if (stock > 0) {
         const [
@@ -742,7 +777,6 @@ export const createManualFrame =
             ]
           );
 
-
         await connection.query(
           `
           INSERT INTO inventory_movements
@@ -773,13 +807,11 @@ export const createManualFrame =
         );
       }
 
-
       await connection.commit();
 
-
-      // -------------------------------------------------
+      // =================================================
       // RETURN CREATED FRAME
-      // -------------------------------------------------
+      // =================================================
 
       const [frames] =
         await db.query(
@@ -808,19 +840,18 @@ export const createManualFrame =
           [productId]
         );
 
-
       return res.status(201).json({
         success: true,
-
         message:
           "Frame added successfully.",
-
         product:
           frames[0],
       });
 
     } catch (error) {
-      await connection.rollback();
+      try {
+        await connection.rollback();
+      } catch {}
 
       console.error(
         "Create Manual Frame Error:",
@@ -832,7 +863,8 @@ export const createManualFrame =
         message:
           "Failed to add frame",
         error:
-          process.env.NODE_ENV === "development"
+          process.env.NODE_ENV ===
+          "development"
             ? error.message
             : undefined,
       });
@@ -842,14 +874,16 @@ export const createManualFrame =
     }
   };
 
-
 // =====================================================
 // CREATE EYE TEST
 // POST /api/eye-tests
 // =====================================================
 
 export const createEyeTest =
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const {
         customer_id,
@@ -878,10 +912,9 @@ export const createEyeTest =
         notes,
       } = req.body;
 
-
-      // -------------------------------------------------
+      // =================================================
       // CUSTOMER
-      // -------------------------------------------------
+      // =================================================
 
       if (
         !isPositiveInteger(
@@ -894,7 +927,6 @@ export const createEyeTest =
             "Valid customer is required",
         });
       }
-
 
       const [
         customers,
@@ -911,7 +943,6 @@ export const createEyeTest =
         [customer_id]
       );
 
-
       if (
         customers.length === 0
       ) {
@@ -922,17 +953,15 @@ export const createEyeTest =
         });
       }
 
-
-      // -------------------------------------------------
-      // PRICE
-      // -------------------------------------------------
+      // =================================================
+      // PRICES
+      // =================================================
 
       const finalLensPrice =
         toPrice(lens_price);
 
       const finalFramePrice =
         toPrice(frame_price);
-
 
       if (
         finalLensPrice === null
@@ -944,7 +973,6 @@ export const createEyeTest =
         });
       }
 
-
       if (
         finalFramePrice === null
       ) {
@@ -955,10 +983,9 @@ export const createEyeTest =
         });
       }
 
-
-      // -------------------------------------------------
+      // =================================================
       // LENS
-      // -------------------------------------------------
+      // =================================================
 
       let finalLensTypeId =
         lens_type_id
@@ -969,8 +996,9 @@ export const createEyeTest =
         lens_type_name?.trim() ||
         null;
 
-
-      if (finalLensTypeId) {
+      if (
+        finalLensTypeId
+      ) {
         const [
           lensTypes,
         ] =
@@ -985,9 +1013,10 @@ export const createEyeTest =
               AND is_active = TRUE
             LIMIT 1
             `,
-            [finalLensTypeId]
+            [
+              finalLensTypeId,
+            ]
           );
-
 
         if (
           lensTypes.length === 0
@@ -999,15 +1028,13 @@ export const createEyeTest =
           });
         }
 
-
         finalLensTypeName =
           lensTypes[0].name;
       }
 
-
-      // -------------------------------------------------
-      // FRAME
-      // -------------------------------------------------
+      // =================================================
+      // FRAME / SUNGLASS
+      // =================================================
 
       let finalFrameProductId =
         frame_product_id
@@ -1017,7 +1044,6 @@ export const createEyeTest =
       let finalFrameName =
         frame_name?.trim() ||
         null;
-
 
       if (
         finalFrameProductId
@@ -1029,7 +1055,9 @@ export const createEyeTest =
             `
             SELECT
               p.id,
+              p.product_type,
               p.product_name,
+              p.selling_price,
               COALESCE(
                 i.current_stock,
                 0
@@ -1042,14 +1070,25 @@ export const createEyeTest =
 
             WHERE
               p.id = ?
-              AND p.product_type = 'Frame'
+
+              AND LOWER(
+                TRIM(
+                  p.product_type
+                )
+              ) IN (
+                'frame',
+                'sunglass',
+                'sunglasses'
+              )
+
               AND p.is_active = TRUE
 
             LIMIT 1
             `,
-            [finalFrameProductId]
+            [
+              finalFrameProductId,
+            ]
           );
-
 
         if (
           frames.length === 0
@@ -1057,10 +1096,9 @@ export const createEyeTest =
           return res.status(404).json({
             success: false,
             message:
-              "Selected frame not found",
+              "Selected frame/sunglass not found",
           });
         }
-
 
         if (
           Number(
@@ -1070,19 +1108,17 @@ export const createEyeTest =
           return res.status(400).json({
             success: false,
             message:
-              "Selected frame is out of stock",
+              "Selected frame/sunglass is out of stock",
           });
         }
-
 
         finalFrameName =
           frames[0].product_name;
       }
 
-
-      // -------------------------------------------------
+      // =================================================
       // INSERT
-      // -------------------------------------------------
+      // =================================================
 
       const [
         result,
@@ -1191,15 +1227,13 @@ export const createEyeTest =
           finalFramePrice,
 
           test_date || null,
-
           notes?.trim() || null,
         ]
       );
 
-
-      // -------------------------------------------------
+      // =================================================
       // RETURN CREATED RECORD
-      // -------------------------------------------------
+      // =================================================
 
       const [
         tests,
@@ -1257,12 +1291,12 @@ export const createEyeTest =
         [result.insertId]
       );
 
-
       return res.status(201).json({
         success: true,
         message:
           "Eye test saved successfully",
-        eyeTest: tests[0],
+        eyeTest:
+          tests[0],
       });
 
     } catch (error) {
@@ -1276,13 +1310,13 @@ export const createEyeTest =
         message:
           "Failed to save eye test",
         error:
-          process.env.NODE_ENV === "development"
+          process.env.NODE_ENV ===
+          "development"
             ? error.message
             : undefined,
       });
     }
   };
-
 
 // =====================================================
 // UPDATE EYE TEST
@@ -1290,7 +1324,10 @@ export const createEyeTest =
 // =====================================================
 
 export const updateEyeTest =
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const { id } =
         req.params;
@@ -1305,19 +1342,18 @@ export const updateEyeTest =
         });
       }
 
-
       const [
         existing,
       ] = await db.query(
         `
-        SELECT id
+        SELECT
+          id
         FROM eye_tests
         WHERE id = ?
         LIMIT 1
         `,
         [id]
       );
-
 
       if (
         existing.length === 0
@@ -1328,7 +1364,6 @@ export const updateEyeTest =
             "Eye test not found",
         });
       }
-
 
       const {
         customer_id,
@@ -1357,6 +1392,9 @@ export const updateEyeTest =
         notes,
       } = req.body;
 
+      // =================================================
+      // CUSTOMER
+      // =================================================
 
       if (
         !isPositiveInteger(
@@ -1370,19 +1408,18 @@ export const updateEyeTest =
         });
       }
 
-
       const [
         customers,
       ] = await db.query(
         `
-        SELECT id
+        SELECT
+          id
         FROM customers
         WHERE id = ?
         LIMIT 1
         `,
         [customer_id]
       );
-
 
       if (
         customers.length === 0
@@ -1394,13 +1431,15 @@ export const updateEyeTest =
         });
       }
 
+      // =================================================
+      // PRICES
+      // =================================================
 
       const finalLensPrice =
         toPrice(lens_price);
 
       const finalFramePrice =
         toPrice(frame_price);
-
 
       if (
         finalLensPrice === null ||
@@ -1413,6 +1452,9 @@ export const updateEyeTest =
         });
       }
 
+      // =================================================
+      // LENS
+      // =================================================
 
       let finalLensTypeId =
         lens_type_id
@@ -1423,8 +1465,9 @@ export const updateEyeTest =
         lens_type_name?.trim() ||
         null;
 
-
-      if (finalLensTypeId) {
+      if (
+        finalLensTypeId
+      ) {
         const [
           lensTypes,
         ] =
@@ -1439,9 +1482,10 @@ export const updateEyeTest =
               AND is_active = TRUE
             LIMIT 1
             `,
-            [finalLensTypeId]
+            [
+              finalLensTypeId,
+            ]
           );
-
 
         if (
           lensTypes.length === 0
@@ -1453,11 +1497,13 @@ export const updateEyeTest =
           });
         }
 
-
         finalLensTypeName =
           lensTypes[0].name;
       }
 
+      // =================================================
+      // FRAME / SUNGLASS
+      // =================================================
 
       let finalFrameProductId =
         frame_product_id
@@ -1467,7 +1513,6 @@ export const updateEyeTest =
       let finalFrameName =
         frame_name?.trim() ||
         null;
-
 
       if (
         finalFrameProductId
@@ -1479,27 +1524,32 @@ export const updateEyeTest =
             `
             SELECT
               p.id,
-              p.product_name,
-              COALESCE(
-                i.current_stock,
-                0
-              ) AS current_stock
+              p.product_type,
+              p.product_name
 
             FROM products p
 
-            LEFT JOIN inventory i
-              ON p.id = i.product_id
-
             WHERE
               p.id = ?
-              AND p.product_type = 'Frame'
+
+              AND LOWER(
+                TRIM(
+                  p.product_type
+                )
+              ) IN (
+                'frame',
+                'sunglass',
+                'sunglasses'
+              )
+
               AND p.is_active = TRUE
 
             LIMIT 1
             `,
-            [finalFrameProductId]
+            [
+              finalFrameProductId,
+            ]
           );
-
 
         if (
           frames.length === 0
@@ -1507,27 +1557,21 @@ export const updateEyeTest =
           return res.status(404).json({
             success: false,
             message:
-              "Frame not found",
+              "Frame/sunglass not found",
           });
         }
-
-
-        /*
-         * Editing an existing eye test can keep
-         * the same selected frame even if stock
-         * has changed. Therefore we don't block
-         * update only because current stock is 0.
-         */
 
         finalFrameName =
           frames[0].product_name;
       }
 
+      // =================================================
+      // UPDATE
+      // =================================================
 
       await db.query(
         `
         UPDATE eye_tests
-
         SET
           customer_id = ?,
 
@@ -1611,7 +1655,6 @@ export const updateEyeTest =
         ]
       );
 
-
       return res.status(200).json({
         success: true,
         message:
@@ -1629,13 +1672,13 @@ export const updateEyeTest =
         message:
           "Failed to update eye test",
         error:
-          process.env.NODE_ENV === "development"
+          process.env.NODE_ENV ===
+          "development"
             ? error.message
             : undefined,
       });
     }
   };
-
 
 // =====================================================
 // DELETE EYE TEST
@@ -1643,7 +1686,10 @@ export const updateEyeTest =
 // =====================================================
 
 export const deleteEyeTest =
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const { id } =
         req.params;
@@ -1658,7 +1704,6 @@ export const deleteEyeTest =
         });
       }
 
-
       const [
         result,
       ] = await db.query(
@@ -1669,7 +1714,6 @@ export const deleteEyeTest =
         [id]
       );
 
-
       if (
         result.affectedRows === 0
       ) {
@@ -1679,7 +1723,6 @@ export const deleteEyeTest =
             "Eye test not found",
         });
       }
-
 
       return res.status(200).json({
         success: true,

@@ -13,17 +13,16 @@ import {
   protect,
 } from "../middleware/authMiddleware.js";
 
-
-const router =
-  express.Router();
-
-
 // =====================================================
-// SPECIFIC ROUTES FIRST
+// SALES ROUTER
 // =====================================================
 
+const router = express.Router();
 
+// =====================================================
+// 1. GET SALES CUSTOMERS
 // GET /api/sales/customers
+// =====================================================
 
 router.get(
   "/customers",
@@ -31,8 +30,10 @@ router.get(
   getSalesCustomers
 );
 
-
+// =====================================================
+// 2. GET CUSTOMER SALES INFORMATION
 // GET /api/sales/customer/:customerId
+// =====================================================
 
 router.get(
   "/customer/:customerId",
@@ -40,13 +41,10 @@ router.get(
   getCustomerSalesInfo
 );
 
-
 // =====================================================
-// SALES
-// =====================================================
-
-
+// 3. GET ALL SALES
 // GET /api/sales
+// =====================================================
 
 router.get(
   "/",
@@ -54,8 +52,10 @@ router.get(
   getSales
 );
 
-
+// =====================================================
+// 4. CREATE SALE
 // POST /api/sales
+// =====================================================
 
 router.post(
   "/",
@@ -63,17 +63,10 @@ router.post(
   createSale
 );
 
-
-// GET /api/sales/:id
-
-router.get(
-  "/:id",
-  protect,
-  getSaleById
-);
-
-
+// =====================================================
+// 5. UPDATE PAYMENT STATUS
 // PATCH /api/sales/:id/payment
+// =====================================================
 
 router.patch(
   "/:id/payment",
@@ -81,5 +74,19 @@ router.patch(
   updatePaymentStatus
 );
 
+// =====================================================
+// 6. GET SALE BY ID
+// GET /api/sales/:id
+// =====================================================
+
+router.get(
+  "/:id",
+  protect,
+  getSaleById
+);
+
+// =====================================================
+// EXPORT ROUTER
+// =====================================================
 
 export default router;

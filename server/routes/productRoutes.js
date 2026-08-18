@@ -21,6 +21,7 @@ import {
 const router =
   express.Router();
 
+
 // =====================================================
 // GET ALL PRODUCTS
 // GET /api/products
@@ -32,6 +33,7 @@ router.get(
   getProducts
 );
 
+
 // =====================================================
 // GET SINGLE PRODUCT
 // GET /api/products/:id
@@ -42,6 +44,7 @@ router.get(
   protect,
   getProductById
 );
+
 
 // =====================================================
 // CREATE PRODUCT
@@ -56,6 +59,7 @@ router.post(
   createProduct
 );
 
+
 // =====================================================
 // UPDATE PRODUCT
 // PUT /api/products/:id
@@ -69,6 +73,7 @@ router.put(
   updateProduct
 );
 
+
 // =====================================================
 // DELETE PRODUCT
 // DELETE /api/products/:id
@@ -80,6 +85,7 @@ router.delete(
   deleteProduct
 );
 
+
 // =====================================================
 // RESTORE PRODUCT
 // PATCH /api/products/:id/restore
@@ -90,5 +96,6 @@ router.patch(
   protect,
   restoreProduct
 );
+
 
 export default router;

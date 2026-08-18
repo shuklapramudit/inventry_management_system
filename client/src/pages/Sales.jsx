@@ -21,6 +21,12 @@ import {
 
 import "./Sales.css";
 
+// =====================================================
+// LIVE BACKEND URL FOR LEGACY PRODUCT IMAGES
+// =====================================================
+const BACKEND_URL =
+  "https://inventry-management-system-1-obf0.onrender.com";
+
 import {
   getSalesCustomers,
   getCustomerSalesInfo,
@@ -71,8 +77,6 @@ const DEFAULT_FORM = {
 
   gst_enabled: false,
   gst_percent: "18",
-
-  advance_amount: "",
 
   payment_status: "PENDING",
   payment_method: "Cash",
@@ -510,42 +514,53 @@ const Sales = () => {
         "/"
       )
     ) {
-      return `http://localhost:5000${value}`;
+      return `${BACKEND_URL}${value}`;
     }
 
 
-    return `http://localhost:5000/${value}`;
+    return `${BACKEND_URL}/${value}`;
   };
 
 
-  // ===================================================
-  // FRAME PRODUCTS
-  // ===================================================
+ // ===================================================
+// FRAME + SUNGLASSES PRODUCTS
+// ===================================================
+// Existing functionality remains the same.
+// Now both Frame and Sunglasses products are available
+// in the Sales product selector.
+// ===================================================
 
-  const frameProducts =
-    useMemo(() => {
+const frameProducts =
+  useMemo(() => {
 
-      return products.filter(
-        (product) => {
+    return products.filter(
+      (product) => {
 
-          const type =
-            String(
-              product?.product_type ||
-              product?.ProductType ||
-              ""
-            ).toLowerCase();
+        const type =
+          String(
+            product?.product_type ||
+            product?.ProductType ||
+            ""
+          )
+            .trim()
+            .toLowerCase();
 
-          return (
-            type === "frame" &&
-            product?.is_active !== 0 &&
-            getProductStock(
-              product
-            ) > 0
-          );
-        }
-      );
+        return (
+          (
+            type === "frame" ||
+            type === "sunglasses" ||
+            type === "sun-glasses" ||
+            type === "sunglass"
+          ) &&
+          product?.is_active !== 0 &&
+          getProductStock(
+            product
+          ) > 0
+        );
+      }
+    );
 
-    }, [products]);
+  }, [products]);
 
 
   // ===================================================
@@ -594,6 +609,29 @@ const Sales = () => {
     }, [
       frameProducts,
       frameSearch,
+    ]);
+
+
+  // ===================================================
+  // SELECTED FRAME PRODUCT
+  // ===================================================
+
+  const selectedFrameProduct =
+    useMemo(() => {
+      if (!form.frame_product_id) {
+        return null;
+      }
+
+      return (
+        products.find(
+          (product) =>
+            String(getProductId(product)) ===
+            String(form.frame_product_id)
+        ) || null
+      );
+    }, [
+      products,
+      form.frame_product_id,
     ]);
 
 
@@ -980,17 +1018,6 @@ const Sales = () => {
         taxableAmount +
         gstAmount;
 
-      const advanceAmount =
-        Number(form.advance_amount) || 0;
-
-      const balanceDue =
-        Math.max(
-          0,
-          Number(
-            (grandTotal - advanceAmount).toFixed(2)
-          )
-        );
-
 
       return {
         lensPrice,
@@ -1002,8 +1029,6 @@ const Sales = () => {
         gstPercent,
         gstAmount,
         grandTotal,
-        advanceAmount,
-        balanceDue,
       };
 
     }, [form]);
@@ -1098,16 +1123,6 @@ const Sales = () => {
       }
 
 
-      if (
-        calculation.advanceAmount >
-        calculation.grandTotal
-      ) {
-        setError(
-          "Advance amount cannot be greater than grand total."
-        );
-        return;
-      }
-
       try {
 
         setSaving(true);
@@ -1166,9 +1181,6 @@ const Sales = () => {
             form.gst_enabled
               ? calculation.gstPercent
               : 0,
-
-          advance_amount:
-            calculation.advanceAmount,
 
           payment_status:
             form.payment_status,
@@ -1471,19 +1483,6 @@ const Sales = () => {
         sale.grand_total || 0
       );
 
-
-    const advanceAmount =
-      Number(
-        sale.advance_amount || 0
-      );
-
-    const balanceDue =
-      Math.max(
-        0,
-        Number(
-          (grandTotal - advanceAmount).toFixed(2)
-        )
-      );
 
     const gstEnabled =
       Boolean(
@@ -2035,16 +2034,6 @@ const Sales = () => {
 
             </div>
 
-            <div class="total-row">
-              <span>Advance Received</span>
-              <strong>-₹${money(advanceAmount)}</strong>
-            </div>
-
-            <div class="total-row grand">
-              <span>Balance Due</span>
-              <strong>₹${money(balanceDue)}</strong>
-            </div>
-
           </div>
 
 
@@ -2071,9 +2060,6 @@ const Sales = () => {
                 "-"
               }
             </p>
-
-            <p><strong>Advance Received:</strong> ₹${money(advanceAmount)}</p>
-            <p><strong>Balance Due:</strong> ₹${money(balanceDue)}</p>
 
           </div>
 
@@ -3056,9 +3042,28 @@ const Sales = () => {
 
                     <div className="selected-frame-icon">
 
-                      <Glasses
-                        size={22}
-                      />
+                      {selectedFrameProduct &&
+                      getProductImage(selectedFrameProduct) ? (
+
+                        <img
+                          src={getProductImage(selectedFrameProduct)}
+                          alt={form.frame_name}
+                        />
+
+                      ) : manualFrame.preview ? (
+
+                        <img
+                          src={manualFrame.preview}
+                          alt={form.frame_name}
+                        />
+
+                      ) : (
+
+                        <Glasses
+                          size={22}
+                        />
+
+                      )}
 
                     </div>
 
@@ -3356,28 +3361,10 @@ const Sales = () => {
                 </div>
 
 
-                <div className="form-grid three">
+                <div className="form-grid">
 
                   <div className="field">
-                    <label>
-                      Advance Received
-                    </label>
-                    <div className="input-with-icon">
-                      <IndianRupee size={17} />
-                      <input
-                        type="number"
-                        min="0"
-                        max={calculation.grandTotal}
-                        step="0.01"
-                        name="advance_amount"
-                        value={form.advance_amount}
-                        onChange={handleChange}
-                        placeholder="0.00"
-                      />
-                    </div>
-                  </div>
 
-                  <div className="field">
                     <label>
                       Payment Method
                     </label>
@@ -3568,11 +3555,6 @@ const Sales = () => {
 
                 )}
 
-                <div>
-                  <span>Advance Received</span>
-                  <strong>-₹{money(calculation.advanceAmount)}</strong>
-                </div>
-
 
                 <div className="grand-total-row">
 
@@ -3587,11 +3569,6 @@ const Sales = () => {
                     )}
                   </strong>
 
-                </div>
-
-                <div className="grand-total-row">
-                  <span>Balance Due</span>
-                  <strong>₹{money(calculation.balanceDue)}</strong>
                 </div>
 
               </section>
@@ -4404,16 +4381,6 @@ const Sales = () => {
                       )}
                     </strong>
 
-                  </div>
-
-                  <div>
-                    <span>Advance Received</span>
-                    <strong>-₹{money(selectedSale?.sale?.advance_amount)}</strong>
-                  </div>
-
-                  <div className="invoice-grand-total">
-                    <span>Balance Due</span>
-                    <strong>₹{money(Math.max(0, Number(selectedSale?.sale?.grand_total || 0) - Number(selectedSale?.sale?.advance_amount || 0)))}</strong>
                   </div>
 
                 </div>
