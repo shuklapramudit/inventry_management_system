@@ -4,6 +4,7 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
 
 // =====================================================
 // DATABASE
@@ -39,10 +40,51 @@ import dashboardRoutes from "./routes/dashboardRoutes.js";
 const app = express();
 
 // =====================================================
+// ES MODULE DIRECTORY
+// =====================================================
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// =====================================================
 // PORT
 // =====================================================
 
 const PORT = process.env.PORT || 5000;
+
+// =====================================================
+// SERVER / BACKEND URL
+// =====================================================
+//
+// IMPORTANT:
+// Production me .env me BACKEND_URL set karna:
+//
+// BACKEND_URL=https://your-backend-domain.com
+//
+// Local development:
+//
+// BACKEND_URL=http://localhost:5000
+//
+// =====================================================
+
+const SERVER_URL =
+  process.env.BACKEND_URL ||
+  `http://localhost:${PORT}`;
+
+// =====================================================
+// MAKE SERVER URL AVAILABLE TO CONTROLLERS
+// =====================================================
+
+app.locals.serverUrl = SERVER_URL;
+
+// =====================================================
+// TRUST PROXY
+// =====================================================
+//
+// Useful when deployed on Render/Railway/etc.
+// =====================================================
+
+app.set("trust proxy", 1);
 
 // =====================================================
 // CORS
@@ -52,6 +94,18 @@ app.use(
   cors({
     origin: true,
     credentials: true,
+    methods: [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+    ],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+    ],
   })
 );
 
@@ -76,22 +130,20 @@ app.use(
 // UPLOAD DIRECTORY
 // =====================================================
 //
-// Physical directory:
+// Project structure:
 //
-// server/uploads
-//
-// Product images:
-//
-// server/uploads/products
-//
-// Public URL:
-//
-// /uploads/products/filename.jpg
+// server/
+// ├── Server.js
+// ├── uploads/
+// │   └── products/
+// │       ├── image1.jpg
+// │       ├── image2.jpg
+// │       └── ...
 //
 // =====================================================
 
-const uploadsPath = path.resolve(
-  process.cwd(),
+const uploadsPath = path.join(
+  __dirname,
   "uploads"
 );
 
@@ -101,7 +153,7 @@ const productsUploadsPath = path.join(
 );
 
 // =====================================================
-// CREATE UPLOAD DIRECTORIES IF NOT EXISTS
+// CREATE UPLOAD DIRECTORIES
 // =====================================================
 
 try {
@@ -113,6 +165,10 @@ try {
   );
 
   console.log(
+    "========================================"
+  );
+
+  console.log(
     "Uploads directory:",
     uploadsPath
   );
@@ -121,9 +177,13 @@ try {
     "Product uploads directory:",
     productsUploadsPath
   );
+
+  console.log(
+    "========================================"
+  );
 } catch (error) {
   console.error(
-    "Failed to create uploads directories:",
+    "Failed to create upload directories:",
     error
   );
 }
@@ -132,17 +192,13 @@ try {
 // STATIC UPLOADS
 // =====================================================
 //
-// Everything inside:
-//
-// server/uploads
-//
-// will be publicly available through:
-//
-// /uploads
-//
-// Example:
+// Database path:
 //
 // /uploads/products/example.jpg
+//
+// Public backend URL:
+//
+// https://your-backend-domain.com/uploads/products/example.jpg
 //
 // =====================================================
 
@@ -151,9 +207,28 @@ app.use(
   express.static(
     uploadsPath,
     {
-      fallthrough: true,
+      fallthrough: false,
       index: false,
       maxAge: "1d",
+
+      // Allow browser to display images directly
+      setHeaders: (res, filePath) => {
+        res.setHeader(
+          "Access-Control-Allow-Origin",
+          "*"
+        );
+
+        res.setHeader(
+          "Cross-Origin-Resource-Policy",
+          "cross-origin"
+        );
+
+        // Cache images
+        res.setHeader(
+          "Cache-Control",
+          "public, max-age=86400"
+        );
+      },
     }
   )
 );
@@ -171,7 +246,87 @@ app.get(
       message:
         "Chashma Plus Inventory API is running",
       status: "OK",
+      serverUrl: SERVER_URL,
+      uploadsUrl:
+        `${SERVER_URL}/uploads`,
+      environment:
+        process.env.NODE_ENV ||
+        "development",
     });
+  }
+);
+
+// =====================================================
+// UPLOADS HEALTH CHECK
+// GET /api/uploads-test
+// =====================================================
+//
+// This route helps us verify that the upload
+// directory exists and is accessible.
+//
+// =====================================================
+
+app.get(
+  "/api/uploads-test",
+  (req, res) => {
+    try {
+      const productsExists =
+        fs.existsSync(
+          productsUploadsPath
+        );
+
+      let productFiles = [];
+
+      if (productsExists) {
+        productFiles =
+          fs
+            .readdirSync(
+              productsUploadsPath
+            )
+            .filter(
+              (file) =>
+                !file.startsWith(".")
+            );
+      }
+
+      return res.status(200).json({
+        success: true,
+
+        uploadsDirectory:
+          uploadsPath,
+
+        productsDirectory:
+          productsUploadsPath,
+
+        productsDirectoryExists:
+          productsExists,
+
+        productImageCount:
+          productFiles.length,
+
+        sampleImages:
+          productFiles
+            .slice(0, 10)
+            .map(
+              (file) =>
+                `${SERVER_URL}/uploads/products/${encodeURIComponent(
+                  file
+                )}`
+            ),
+      });
+    } catch (error) {
+      console.error(
+        "Uploads test error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Unable to read uploads directory",
+        error: error.message,
+      });
+    }
   }
 );
 
@@ -191,11 +346,14 @@ app.get(
 
       return res.status(200).json({
         success: true,
+
         message:
           "Aiven MySQL connected successfully",
+
         database:
           process.env.DB_NAME ||
           "Not configured",
+
         result: rows,
       });
     } catch (error) {
@@ -206,8 +364,10 @@ app.get(
 
       return res.status(500).json({
         success: false,
+
         message:
           "Database connection failed",
+
         error: error.message,
       });
     }
@@ -288,11 +448,12 @@ app.use(
 // 404 NOT FOUND
 // =====================================================
 //
-// This must remain AFTER:
-//
+// Must remain AFTER:
 // 1. Static uploads
 // 2. Health check
-// 3. All API routes
+// 3. Upload test
+// 4. DB test
+// 5. All API routes
 //
 // =====================================================
 
@@ -304,7 +465,7 @@ app.use(
 // GLOBAL ERROR HANDLER
 // =====================================================
 //
-// This must be the LAST middleware.
+// MUST BE LAST
 //
 // =====================================================
 
@@ -319,28 +480,35 @@ app.use(
 app.listen(
   PORT,
   () => {
+    console.log("");
     console.log(
       "========================================"
     );
-
     console.log(
       "   CHASHMA PLUS INVENTORY SYSTEM"
     );
-
     console.log(
       "========================================"
     );
 
     console.log(
-      `Server running on port ${PORT}`
+      `Server running on port: ${PORT}`
     );
 
     console.log(
-      `API URL: http://localhost:${PORT}`
+      `Server URL: ${SERVER_URL}`
     );
 
     console.log(
-      `Uploads URL: http://localhost:${PORT}/uploads`
+      `API URL: ${SERVER_URL}/api`
+    );
+
+    console.log(
+      `Uploads URL: ${SERVER_URL}/uploads`
+    );
+
+    console.log(
+      `Product Images URL: ${SERVER_URL}/uploads/products`
     );
 
     console.log(
@@ -368,5 +536,7 @@ app.listen(
     console.log(
       "========================================"
     );
+
+    console.log("");
   }
 );
