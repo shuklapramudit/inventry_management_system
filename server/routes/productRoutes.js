@@ -18,8 +18,12 @@ import {
   handleUploadError,
 } from "../middleware/uploadMiddleware.js";
 
-const router =
-  express.Router();
+
+// =====================================================
+// ROUTER
+// =====================================================
+
+const router = express.Router();
 
 
 // =====================================================
@@ -97,5 +101,9 @@ router.patch(
   restoreProduct
 );
 
+
+// =====================================================
+// EXPORT
+// =====================================================
 
 export default router;

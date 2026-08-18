@@ -5,158 +5,118 @@ import multer from "multer";
 // =====================================================
 //
 // IMPORTANT:
+// Render/server local filesystem par product images
+// permanently save nahi karni hain.
 //
-// Images Render ke local filesystem me save nahi hongi.
-//
-// Images temporarily memory me rahengi.
-//
-// Uske baad productController.js se directly
-// Cloudinary par upload ki jayengi.
+// Files temporary memory me rahengi.
+// productController.js in files ko Cloudinary ya
+// kisi permanent storage par upload kar sakta hai.
 //
 // =====================================================
 
-const storage =
-  multer.memoryStorage();
+const storage = multer.memoryStorage();
 
 
 // =====================================================
 // FILE FILTER
 // =====================================================
 
-const fileFilter = (
-  req,
-  file,
-  cb
-) => {
+const fileFilter = (req, file, cb) => {
+  try {
+    // -------------------------------------------------
+    // ALLOWED MIME TYPES
+    // -------------------------------------------------
 
-  // -------------------------------------------------
-  // ALLOWED MIME TYPES
-  // -------------------------------------------------
+    const allowedMimeTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ];
 
-  const allowedMimeTypes = [
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-  ];
+    // -------------------------------------------------
+    // ALLOWED EXTENSIONS
+    // -------------------------------------------------
 
+    const allowedExtensions = [
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".webp",
+    ];
 
-  // -------------------------------------------------
-  // ALLOWED FILE EXTENSIONS
-  // -------------------------------------------------
+    // -------------------------------------------------
+    // ORIGINAL FILE NAME
+    // -------------------------------------------------
 
-  const allowedExtensions = [
-    ".jpg",
-    ".jpeg",
-    ".png",
-    ".webp",
-  ];
+    const originalName =
+      file.originalname || "";
 
+    // -------------------------------------------------
+    // GET EXTENSION
+    // -------------------------------------------------
 
-  // -------------------------------------------------
-  // ORIGINAL FILE NAME
-  // -------------------------------------------------
+    const lastDotIndex =
+      originalName.lastIndexOf(".");
 
-  const originalName =
-    file.originalname || "";
+    const extension =
+      lastDotIndex !== -1
+        ? originalName
+            .substring(lastDotIndex)
+            .toLowerCase()
+        : "";
 
+    // -------------------------------------------------
+    // VALIDATE
+    // -------------------------------------------------
 
-  // -------------------------------------------------
-  // GET FILE EXTENSION
-  // -------------------------------------------------
+    if (
+      allowedMimeTypes.includes(file.mimetype) &&
+      allowedExtensions.includes(extension)
+    ) {
+      return cb(null, true);
+    }
 
-  const lastDotIndex =
-    originalName.lastIndexOf(".");
-
-
-  const extension =
-    lastDotIndex !== -1
-      ? originalName
-          .substring(lastDotIndex)
-          .toLowerCase()
-      : "";
-
-
-  // -------------------------------------------------
-  // VALIDATE FILE
-  // -------------------------------------------------
-
-  if (
-    allowedMimeTypes.includes(
-      file.mimetype
-    ) &&
-    allowedExtensions.includes(
-      extension
-    )
-  ) {
-
-    cb(
-      null,
-      true
-    );
-
-  } else {
-
-    cb(
+    return cb(
       new Error(
         "Only JPG, JPEG, PNG and WEBP images are allowed."
       ),
       false
     );
 
+  } catch (error) {
+    return cb(error, false);
   }
 };
 
 
 // =====================================================
-// MULTER CONFIGURATION
+// MULTER INSTANCE
 // =====================================================
 
-const upload =
-  multer({
+const upload = multer({
+  storage,
 
-    // -------------------------------------------------
-    // MEMORY STORAGE
-    // -------------------------------------------------
+  fileFilter,
 
-    storage,
+  limits: {
+    // Maximum 5 files
+    files: 5,
 
-
-    // -------------------------------------------------
-    // FILE FILTER
-    // -------------------------------------------------
-
-    fileFilter,
-
-
-    // -------------------------------------------------
-    // LIMITS
-    // -------------------------------------------------
-
-    limits: {
-
-      // Maximum 5 images
-      files: 5,
-
-      // Maximum 5MB per image
-      fileSize:
-        5 * 1024 * 1024,
-
-    },
-
-  });
+    // Maximum 5MB per file
+    fileSize: 5 * 1024 * 1024,
+  },
+});
 
 
 // =====================================================
-// PRODUCT IMAGES
+// PRODUCT IMAGE UPLOAD
 // =====================================================
 //
-// Frontend field name MUST remain:
-//
+// Frontend FormData field:
 // product_images
 //
-// Maximum images:
-//
-// 5
+// Maximum:
+// 5 images
 //
 // =====================================================
 
@@ -170,6 +130,17 @@ export const uploadProductImages =
 // =====================================================
 // UPLOAD ERROR HANDLER
 // =====================================================
+//
+// IMPORTANT:
+// This MUST be a NAMED EXPORT because
+// productRoutes.js imports it using:
+//
+// import {
+//   uploadProductImages,
+//   handleUploadError
+// } from "../middleware/uploadMiddleware.js";
+//
+// =====================================================
 
 export const handleUploadError = (
   err,
@@ -179,95 +150,75 @@ export const handleUploadError = (
 ) => {
 
   // -------------------------------------------------
+  // NO ERROR
+  // -------------------------------------------------
+
+  if (!err) {
+    return next();
+  }
+
+  // -------------------------------------------------
   // MULTER ERROR
   // -------------------------------------------------
 
-  if (
-    err instanceof
-    multer.MulterError
-  ) {
+  if (err instanceof multer.MulterError) {
 
     // -----------------------------------------------
-    // FILE SIZE ERROR
+    // FILE TOO LARGE
     // -----------------------------------------------
 
-    if (
-      err.code ===
-      "LIMIT_FILE_SIZE"
-    ) {
-
+    if (err.code === "LIMIT_FILE_SIZE") {
       return res.status(400).json({
-
         success: false,
-
         message:
           "Each image must be less than 5MB.",
-
       });
-
     }
 
-
     // -----------------------------------------------
-    // FILE COUNT ERROR
+    // TOO MANY FILES
     // -----------------------------------------------
 
-    if (
-      err.code ===
-      "LIMIT_FILE_COUNT"
-    ) {
-
+    if (err.code === "LIMIT_FILE_COUNT") {
       return res.status(400).json({
-
         success: false,
-
         message:
           "Maximum 5 images are allowed.",
-
       });
-
     }
 
+    // -----------------------------------------------
+    // WRONG FIELD
+    // -----------------------------------------------
+
+    if (err.code === "LIMIT_UNEXPECTED_FILE") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Unexpected image field. Use 'product_images'.",
+      });
+    }
 
     // -----------------------------------------------
-    // OTHER MULTER ERRORS
+    // OTHER MULTER ERROR
     // -----------------------------------------------
 
     return res.status(400).json({
-
       success: false,
-
       message:
         `Upload error: ${err.message}`,
-
     });
-
   }
-
 
   // -------------------------------------------------
   // CUSTOM FILE FILTER ERROR
   // -------------------------------------------------
 
-  if (err) {
-
-    return res.status(400).json({
-
-      success: false,
-
-      message:
-        err.message,
-
-    });
-
-  }
-
-
-  // -------------------------------------------------
-  // CONTINUE
-  // -------------------------------------------------
-
-  next();
+  return res.status(400).json({
+    success: false,
+    message:
+      err.message || "Image upload failed.",
+  });
 };
 
 
