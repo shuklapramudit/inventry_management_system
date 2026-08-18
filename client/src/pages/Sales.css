@@ -979,7 +979,7 @@
     translateY(-1px);
 }
 
-.frame-image {
+.sales-frame-image {
   width: 65px;
   height: 65px;
 
@@ -995,7 +995,7 @@
   color: #087f75;
 }
 
-.frame-image img {
+.sales-frame-image img {
   width: 100%;
   height: 100%;
 
@@ -1384,4 +1384,134 @@
     width: 100%;
   }
 
+}
+
+/* =====================================================
+   SALE MODAL RESPONSIVENESS + FRAME IMAGE SAFETY
+   ===================================================== */
+
+.sale-modal {
+  position: relative;
+  width: min(900px, calc(100vw - 24px));
+  max-width: 900px;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: #ffffff !important;
+}
+
+.sale-modal form,
+.sale-modal .form-section,
+.sale-modal .sale-calculation,
+.sale-modal .modal-footer {
+  background: #ffffff;
+  min-width: 0;
+}
+
+.sale-modal img {
+  max-width: 100%;
+}
+
+.sales-frame-image {
+  width: 65px !important;
+  min-width: 65px !important;
+  max-width: 65px !important;
+  height: 65px !important;
+  min-height: 65px !important;
+  max-height: 65px !important;
+  flex: 0 0 65px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  border-radius: 10px;
+  background: #effcf9;
+  color: #087f75;
+}
+
+.sales-frame-image img {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  object-position: center;
+}
+
+.frame-option {
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.frame-option-info {
+  min-width: 0;
+}
+
+.frame-option-info strong,
+.frame-option-info span,
+.frame-option-info small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selected-frame {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.selected-frame > div:nth-child(2) {
+  min-width: 0;
+}
+
+.advance-payment-field {
+  position: relative;
+}
+
+.advance-payment-help {
+  margin-top: 3px;
+  color: #8792a5;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+@media (max-width: 700px) {
+  .modal-overlay {
+    padding: 8px;
+  }
+
+  .sale-modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100vh - 16px);
+    border-radius: 12px;
+  }
+
+  .modal-header {
+    padding: 16px;
+  }
+
+  .form-section {
+    margin: 12px;
+    padding: 14px;
+  }
+
+  .sale-calculation {
+    margin: 12px;
+    padding: 14px;
+  }
+
+  .modal-footer {
+    padding: 12px;
+    flex-wrap: wrap;
+  }
+
+  .modal-footer button {
+    flex: 1 1 140px;
+  }
 }
