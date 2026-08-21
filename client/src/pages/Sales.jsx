@@ -172,6 +172,15 @@ const Sales = () => {
 
   const [frameSearch, setFrameSearch] =
     useState("");
+    const [customerSearch, setCustomerSearch] = useState("");
+
+const [showCustomerSelector, setShowCustomerSelector] = useState(false);
+
+  const [customerSearch, setCustomerSearch] =
+    useState("");
+
+  const [showCustomerSelector, setShowCustomerSelector] =
+    useState(false);
 
   const [salesSearch, setSalesSearch] =
     useState("");
@@ -608,6 +617,78 @@ const Sales = () => {
       frameProducts,
       frameSearch,
     ]);
+
+
+  // ===================================================
+  // FILTER CUSTOMERS
+  // ===================================================
+
+  const filteredCustomers =
+    useMemo(() => {
+
+      const query =
+        customerSearch
+          .trim()
+          .toLowerCase();
+
+      if (!query) {
+        return customers;
+      }
+
+      return customers.filter(
+        (customer) => {
+
+          const name =
+            getCustomerName(
+              customer
+            ).toLowerCase();
+
+          const mobile =
+            String(
+              getCustomerMobile(
+                customer
+              )
+            ).toLowerCase();
+
+          return (
+            name.includes(query) ||
+            mobile.includes(query)
+          );
+        }
+      );
+
+    }, [
+      customers,
+      customerSearch,
+    ]);
+
+
+  // ===================================================
+  // CUSTOMER SELECT
+  // ===================================================
+
+  const selectCustomer =
+    async (customer) => {
+
+      const customerId =
+        getCustomerId(
+          customer
+        );
+
+      await handleCustomerChange({
+        target: {
+          value: customerId,
+        },
+      });
+
+      setShowCustomerSelector(
+        false
+      );
+
+      setCustomerSearch(
+        ""
+      );
+    };
 
 
   // ===================================================
@@ -2922,110 +3003,75 @@ const Sales = () => {
                   CUSTOMER
                   ========================================= */}
 
-              <section className="form-section">
+                <section className="form-section">
 
-                <div className="form-section-title">
-
-                  <UserRound
-                    size={20}
-                  />
-
-                  <div>
-
-                    <h3>
-                      Customer Details
-                    </h3>
-
-                    <p>
-                      Select the customer for this sale.
-                    </p>
-
-                  </div>
-
-                </div>
-
-
-                <div className="form-grid">
-
-                  <div className="field">
-
-                    <label>
-                      Customer *
-                    </label>
-
-                    <select
-                      name="customer_id"
-                      value={
-                        form.customer_id
-                      }
-                      onChange={
-                        handleCustomerChange
-                      }
-                      required
-                    >
-
-                      <option value="">
-                        Select Customer
-                      </option>
-
-                      {customers.map(
-                        (
-                          customer
-                        ) => {
-
-                          const id =
-                            getCustomerId(
-                              customer
-                            );
-
-                          return (
-                            <option
-                              key={
-                                id
-                              }
-                              value={
-                                id
-                              }
-                            >
-                              {
-                                getCustomerName(
-                                  customer
-                                )
-                              }
-                            </option>
-                          );
-                        }
-                      )}
-
-                    </select>
-
-                  </div>
-
-
-                  <div className="field">
-
-                    <label>
-                      Mobile
-                    </label>
-
-                    <input
-                      type="text"
-                      value={
-                        selectedCustomer
-                          ? getCustomerMobile(
-                              selectedCustomer
-                            )
-                          : ""
-                      }
-                      placeholder="Customer mobile"
-                      readOnly
+                  <div className="form-section-title">
+                    <UserRound
+                      size={20}
                     />
 
+                    <div>
+                      <h3>
+                        Customer Details
+                      </h3>
+
+                      <p>
+                        Select the customer for this sale.
+                      </p>
+                    </div>
                   </div>
 
-                </div>
 
-              </section>
+                  <div className="form-grid">
+                    <div className="field">
+
+                      <label>
+                        Customer *
+                      </label>
+
+                      <button
+                        type="button"
+                        className="primary-btn"
+                        onClick={() =>
+                          setShowCustomerSelector(
+                            true
+                          )
+                        }
+                      >
+                        {selectedCustomer
+                          ? getCustomerName(
+                              selectedCustomer
+                            )
+                          : "Select Customer"}
+                      </button>
+
+                    </div>
+
+
+                    <div className="field">
+
+                      <label>
+                        Mobile
+                      </label>
+
+                      <input
+                        type="text"
+                        value={
+                          selectedCustomer
+                            ? getCustomerMobile(
+                                selectedCustomer
+                              )
+                            : ""
+                        }
+                        placeholder="Customer mobile"
+                        readOnly
+                      />
+
+                    </div>
+
+                  </div>
+
+                </section>
 
 
               {/* =========================================
@@ -3684,6 +3730,134 @@ const Sales = () => {
 
         </div>
 
+      )}
+
+
+      {/* =================================================
+          CUSTOMER SELECTOR
+          ================================================= */}
+
+      {showCustomerSelector && (
+
+        <div className="modal-overlay">
+
+          <div className="frame-modal">
+
+            <div className="modal-header">
+
+              <div>
+                <h2>
+                  Select Customer
+                </h2>
+
+                <p>
+                  Search customer by name or mobile.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowCustomerSelector(
+                    false
+                  )
+                }
+              >
+                <X
+                  size={20}
+                />
+              </button>
+
+            </div>
+
+
+            <div className="frame-search">
+
+              <Search
+                size={18}
+              />
+
+              <input
+                type="text"
+                value={
+                  customerSearch
+                }
+                onChange={(event) =>
+                  setCustomerSearch(
+                    event.target.value
+                  )
+                }
+                placeholder="Search customer..."
+                autoFocus
+              />
+
+            </div>
+
+
+            <div className="frame-list">
+
+              {filteredCustomers.length ===
+              0 ? (
+
+                <div className="sales-empty small">
+                  <UserRound
+                    size={35}
+                  />
+                  <p>
+                    No customers found.
+                  </p>
+                </div>
+
+              ) : (
+
+                filteredCustomers.map(
+                  (customer) => {
+
+                    const id =
+                      getCustomerId(
+                        customer
+                      );
+
+                    return (
+
+                      <button
+                        type="button"
+                        className="frame-option"
+                        key={id}
+                        onClick={() =>
+                          selectCustomer(
+                            customer
+                          )
+                        }
+                      >
+
+                        <div>
+                          <strong>
+                            {getCustomerName(
+                              customer
+                            )}
+                          </strong>
+
+                          <p>
+                            {getCustomerMobile(
+                              customer
+                            ) || "-"}
+                          </p>
+                        </div>
+
+                      </button>
+
+                    );
+                  }
+                )
+
+              )}
+
+            </div>
+
+          </div>
+
+        </div>
       )}
 
 
